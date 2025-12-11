@@ -166,7 +166,10 @@ def fetch_assignments(debug_mode: bool) -> tuple[list, list]:
                 cells = row.locator("td").all()
                 if len(cells) < 8:
                     continue
+
                 action_col = cells[6].text_content()
+                action_class = cells[7].locator("small").first.get_attribute("class")
+
                 if "Submit" in action_col or "Delete" in action_col: # pyright: ignore[reportOperatorIssue]
                     assignment_name = cells[1].text_content().strip() # pyright: ignore[reportOptionalMemberAccess]
                     assignment_link = f"https://lms.bahria.edu.pk/Student/{cells[2].locator('a').get_attribute('href')}"
@@ -175,7 +178,7 @@ def fetch_assignments(debug_mode: bool) -> tuple[list, list]:
                     pattern = download_assignment_file(page, subject_name, assignment_name, deadline_date, assignment_link) # pyright: ignore[reportArgumentType]
 
                     if deadline_date:
-                        deadlines.append((subject_name, deadline_date))
+                        deadlines.append((subject_name, deadline_date, action_class))
                     patterns.append(pattern)
 
         browser.close()
@@ -186,38 +189,38 @@ def fetch_assignments(debug_mode: bool) -> tuple[list, list]:
 def display_deadlines(deadlines: list, kdeDevice: str, ntfyServer: str):
     today = datetime.today().date()
     parsedDeadlines = []
-    for subject, date_str in deadlines:
+    for subject, date_str, action_class in deadlines:
         deadline_date = datetime.strptime(date_str, "%d %B %Y").date()
         days_left = (deadline_date - today).days
-        parsedDeadlines.append((subject, deadline_date, days_left))
+        parsedDeadlines.append((subject, deadline_date, days_left, action_class))
 
     parsedDeadlines.sort(key=lambda x: x[1])
 
     dueToday, dueNext4, dueAfter4, messages = [], [], [], []
 
-    for subject, deadline_date, days_left in parsedDeadlines:
+    for subject, deadline_date, days_left, action_class in parsedDeadlines:
         display_date = deadline_date.strftime("%#d %B") if os.name == "nt" else deadline_date.strftime("%-d %B")
         plainMsg = f"{subject} - {display_date} ({days_left} Days Left)"
         if days_left == 0:
-            colored = f"{Colors.RED_BRIGHT}{subject} - {display_date} (Due Today){Colors.RESET}"
+            colored = f"{Colors.RED_BRIGHT}{subject} - {display_date} (Due Today) {"(Extended)" if "label-warning" in action_class else ""}{Colors.RESET}"
             dueToday.append(colored)
             if kdeDevice or ntfyServer:
                 messages.append(plainMsg)
         elif 1 <= days_left <= 4:
             color = [Colors.YELLOW_BRIGHT, Colors.YELLOW_MEDIUM, Colors.YELLOW_DARK][min(days_left - 1, 2)]
-            colored = f"{color}{subject} - {display_date} ({days_left} Days Left){Colors.RESET}"
+            colored = f"{color}{subject} - {display_date} ({days_left} Days Left) {"(Extended)" if "label-warning" in action_class else ""}{Colors.RESET}"
             dueNext4.append(colored)
         elif 5 <= days_left <= 7:
             color = Colors.GREEN_BRIGHT
-            colored = f"{color}{subject} - {display_date} ({days_left} Days Left){Colors.RESET}"
+            colored = f"{color}{subject} - {display_date} ({days_left} Days Left) {"(Extended)" if "label-warning" in action_class else ""}{Colors.RESET}"
             dueAfter4.append(colored)
         elif 8 <= days_left <= 14:
             color = Colors.GREEN_MEDIUM
-            colored = f"{color}{subject} - {display_date} ({days_left} Days Left){Colors.RESET}"
+            colored = f"{color}{subject} - {display_date} ({days_left} Days Left) {"(Extended)" if "label-warning" in action_class else ""}{Colors.RESET}"
             dueAfter4.append(colored)
         else:
             color = Colors.GREEN_DARK
-            colored = f"{color}{subject} - {display_date} ({days_left} Days Left){Colors.RESET}"
+            colored = f"{color}{subject} - {display_date} ({days_left} Days Left) {"(Extended)" if "label-warning" in action_class else ""}{Colors.RESET}"
             dueAfter4.append(colored)
 
     if dueToday:

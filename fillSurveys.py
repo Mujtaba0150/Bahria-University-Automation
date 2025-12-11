@@ -11,7 +11,7 @@ enrollment_number = os.getenv("ENROLLMENT_NUMBER", "")
 password = os.getenv("PASSWORD", "")
 data_dir = os.getenv("USER_DATA_DIR", "")
 disabled = os.getenv("DISABLED", 0)
-gender = os.getenv("GENDER", 1)
+gender = os.getenv("GENDER", 0)
 age = os.getenv("AGE", 0)
 on_campus = os.getenv("ON_CAMPUS", 1)
 

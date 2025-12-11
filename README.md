@@ -12,11 +12,11 @@ A collection of Python automation scripts to streamline common tasks for Bahria 
 
 ### Assignment Tracker (`checkAssignments.py`)
 - Fetches all pending assignments from LMS
+- Differentiates between extended and not extended assignments
 - Automatically downloads assignment files
 - Color-coded deadline display based on urgency
 - Removes outdated assignment files automatically
 - Multiple notification options (KDE Connect, Ntfy)
-- WhatsApp-formatted output for easy sharing
 
 ### Attendance Monitor (`checkAttendance.py`)
 - Displays remaining absences for each course
@@ -77,7 +77,7 @@ These variables are used for automatic demographic information filling when manu
 | Variable | Default | Options | Description |
 |----------|---------|---------|-------------|
 | `DISABLED` | 0 | 0=Non-disabled, 1=Disabled | Disability status |
-| `GENDER` | 1 | 0=Male, 1=Female | Gender |
+| `GENDER` | 0 | 0=Male, 1=Female | Gender |
 | `AGE` | 0 | 0=<22, 1=22-29, 2=>29 | Age range |
 | `ON_CAMPUS` | 1 | 0=Off Campus, 1=On Campus | Residence status |
 
@@ -113,7 +113,9 @@ python checkAssignments.py --debug --kde your_device_id
 
 **Color-Coded Output:**
 - 🔴 **Red**: Due today (triggers notifications)
-- 🟡 **Yellow**: Due within 1-4 days
+- 🟡 **Yellow(Bright)**: Due within 1 day
+- 🟡 **Yellow(Medium)**: Due within 2 days
+- 🟡 **Yellow(Dark)**: Due within 3-4 days
 - 🟢 **Green (Bright)**: Due within 5-7 days
 - 🟢 **Green (Medium)**: Due within 8-14 days
 - 🟢 **Green (Dark)**: Due after 14 days
@@ -159,17 +161,10 @@ python fillSurveys.py -d
 
 ## Features Breakdown
 
-### Survey Automation Features
-- **Automatic Survey Detection**: Distinguishes between Teacher Evaluation and Course Evaluation forms
-- **Persistent Cookies**: Maintains login sessions for a year
-- **Selective Form Filling**: Choose which surveys to fill manually or automatically
-- **Selective Options Filling**: Choose whether to fill surveys automatically with a single option or whether to fill each option separately
-- **Demographic Auto-fill**: Automatically fills demographic information for course surveys using environment variables (configurable via `.env` file)
 ### Assignment Tracker Features
 - **Smart Download Management**: Downloads new assignments and removes outdated ones
 - **Duplicate Prevention**: Checks for existing files before downloading
 - **Multi-notification Support**: Integrates with KDE Connect and Ntfy.sh
-- **Subject Abbreviations**: Converts long course names to short forms for WhatsApp mode
 - **Automatic File Organization**: Creates subject-specific folders for downloads
 
 ### Attendance Monitor Features
@@ -177,6 +172,13 @@ python fillSurveys.py -d
 - **Lab Course Handling**: Special calculation for lab courses with 3 contact hours
 - **Clean Formatting**: Removes trailing zeros from decimal values
 - **Color-coded Display**: Visual emphasis on course names
+
+### Survey Automation Features
+- **Automatic Survey Detection**: Distinguishes between Teacher Evaluation and Course Evaluation forms
+- **Persistent Cookies**: Maintains login sessions for a year
+- **Selective Form Filling**: Choose which surveys to fill manually or automatically
+- **Selective Options Filling**: Choose whether to fill surveys automatically with a single option or whether to fill each option separately
+- **Demographic Auto-fill**: Automatically fills demographic information for course surveys using environment variables (configurable via `.env` file)
 
 ## Configuration Notes
 
@@ -202,6 +204,7 @@ The `checkAssignments.py` script:
 - Survey structure may change over time; the scripts may need updates
 - Assignment deadlines are downloaded and organized automatically
 - Attendance calculations follow standard university policies (25% absence limit) which may change in the future
+- It is recommended to make an alias on Linux in the ~/.bashrc file or a batch file in Windows to a path in the PATH environment variable, to make it easier to run the scripts
 
 ## Contributing
 
