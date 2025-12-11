@@ -9,6 +9,12 @@ from time import sleep
 load_dotenv()
 enrollment_number = os.getenv("ENROLLMENT_NUMBER", "")
 password = os.getenv("PASSWORD", "")
+data_dir = os.getenv("USER_DATA_DIR", "")
+disabled = os.getenv("DISABLED", 0)
+gender = os.getenv("GENDER", 1)
+age = os.getenv("AGE", 0)
+on_campus = os.getenv("ON_CAMPUS", 1)
+
 
 def clear_terminal():
     if platform.system() == "Windows":
@@ -101,29 +107,29 @@ def fill_survey(page, debug_mode: bool, option: int):
                     print(f"Failed to click ({input_id}): {e}")
 
     if groups == course_groups: 
-            
             # Demographic Information
-    
+
             # Fulltime/Parttime
             page.wait_for_selector("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_0_1_0", timeout=2000)
             page.click("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_0_1_0")
-    
-    
+
+
             # Disabled/Non-Disabled
-            page.wait_for_selector("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_1_1_1", timeout=2000)
-            page.click("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_1_1_1")
-    
+            selector = f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_1_{not disabled}_1"
+            page.wait_for_selector(selector, timeout=2000)
+            page.click(selector)
+
             # Male/Female
-            page.wait_for_selector("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_3_0_3", timeout=2000)
-            page.click("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_3_0_3")
-    
+            page.wait_for_selector(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_3_{gender}_3", timeout=2000)
+            page.click(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_3_{gender}_3")
+
             # Age:>22/22-29/>29
-            page.wait_for_selector("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_4_0_4", timeout=2000)
-            page.click("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_4_0_4")
-    
+            page.wait_for_selector(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_4_{age}_4", timeout=2000)
+            page.click(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_4_{age}_4")
+
             # On Campus/Off Campus
-            page.wait_for_selector("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_5_1_5", timeout=2000)
-            page.click("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_5_1_5")
+            page.wait_for_selector(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_5_{on_campus}_5", timeout=2000)
+            page.click(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_5_{on_campus}_5")
     
     # Submit
     submit_selector = "#BodyPH_surveyUserControl_btnSubmit"
@@ -139,9 +145,9 @@ def fill_custom_survey(page, currently_filling, debug_mode: bool):
     
     clear_terminal()
     print(currently_filling + "\n")
-    choice = int(input("Do you want to fill the same value for all questions? (0=Yes, 1=No): "))
+    choice = int(input("Do you want to fill the same value for all questions? (0=No, 1=Yes): "))
 
-    if choice == 0:
+    if choice == 1:
         selected_option = int(input(
             "Select your default answer option (0=Strongly Agree, 1=Agree, 2=Uncertain, 3=Disagree, 4=Strongly Disagree): "
         ))
@@ -210,20 +216,21 @@ def fill_custom_survey(page, currently_filling, debug_mode: bool):
 
 
             # Disabled/Non-Disabled
-            page.wait_for_selector("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_1_1_1", timeout=2000)
-            page.click("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_1_1_1")
+            selector = f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_1_{not disabled}_1"
+            page.wait_for_selector(selector, timeout=2000)
+            page.click(selector)
 
             # Male/Female
-            page.wait_for_selector("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_3_0_3", timeout=2000)
-            page.click("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_3_0_3")
+            page.wait_for_selector(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_3_{gender}_3", timeout=2000)
+            page.click(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_3_{gender}_3")
 
             # Age:>22/22-29/>29
-            page.wait_for_selector("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_4_0_4", timeout=2000)
-            page.click("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_4_0_4")
+            page.wait_for_selector(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_4_{age}_4", timeout=2000)
+            page.click(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_4_{age}_4")
 
             # On Campus/Off Campus
-            page.wait_for_selector("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_5_1_5", timeout=2000)
-            page.click("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_5_1_5")
+            page.wait_for_selector(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_5_{on_campus}_5", timeout=2000)
+            page.click(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_5_{on_campus}_5")
 
         # Submit
         submit_selector = "#BodyPH_surveyUserControl_btnSubmit"
@@ -294,7 +301,7 @@ def extractSurveyData(rows, debug_mode: bool):
 def startPlaywright(debug_mode: bool):
     """Launches persistent browser and runs survey automation."""
     browser = p.chromium.launch_persistent_context(
-        user_data_dir="/home/mujtaba0150/.config/ms-playwright",
+        user_data_dir=data_dir,
         headless= not debug_mode,
         args=[
             "--window-size=1920,1080",
@@ -322,6 +329,11 @@ def parseArgs():
     return parser.parse_args()
 
 if __name__ == "__main__":
+
+    if enrollment_number == "" or password == "" or data_dir == "":
+        print("Error: One or more required environment variables are not set.")
+        exit(1)
+
     args = parseArgs()
 
     chosen_option = int(input(

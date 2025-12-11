@@ -18,19 +18,6 @@ class Colors:
     GREEN_DARK = "\x1b[38;2;9;92;9m"
     RESET = "\033[0m"
 
-
-subjectAbbreviations = {
-    "Computer Architecture Lab": "CA Lab",
-    "Operating Systems Lab": "OS Lab",
-    "Design and Analysis of Algorithms Lab": "DAA Lab",
-    "Artificial Intelligence Lab": "AI Lab",
-    "Design and Analysis of Algorithms": "DAA",
-    "Theory of Automata": "TOA",
-    "Operating Systems": "OS",
-    "Computer Architecture": "CA",
-    "Artificial Intelligence": "AI"
-}
-
 load_dotenv()
 download_dir = os.getenv("DOWNLOAD_DIR", "")
 enrollment_number = os.getenv("ENROLLMENT_NUMBER", "")
@@ -44,7 +31,6 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-k", "--kde", action="store", help="Send notifications via KDE Connect using Device ID")
     parser.add_argument("-n", "--ntfy", action="store", help="Send notifications via Ntfy using Server")
-    parser.add_argument("-w", "--whatsapp", action="store_true", help="Format for WhatsApp Message")
     parser.add_argument("-d", "--debug", action="store_true", help="Enable debug mode")
     return parser.parse_args()
 
@@ -197,28 +183,6 @@ def fetch_assignments(debug_mode: bool) -> tuple[list, list]:
     return deadlines, patterns
 
 
-def display_whatsapp_formatted_deadlines(deadlines: list):
-    formattedDeadlines = []
-    for subject, date in deadlines:
-        shortSubject = subjectAbbreviations.get(subject, subject)
-        try:
-            parsedDate = datetime.strptime(date, "%d %B %Y")
-            day = parsedDate.day
-            if 11 <= day <= 13:
-                suffix = "th"
-            else:
-                suffix = {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
-            formattedDate = f"{day}{suffix} {parsedDate.strftime('%b')}"
-            formattedDeadlines.append((shortSubject, formattedDate, parsedDate))
-        except ValueError:
-            formattedDeadlines.append((shortSubject, date, None))
-
-    formattedDeadlines.sort(key=lambda x: (x[2] is None, x[2]))
-
-    for subject, formattedDate, _ in formattedDeadlines:
-        print(f"{subject} - {formattedDate}")
-
-
 def display_deadlines(deadlines: list, kdeDevice: str, ntfyServer: str):
     today = datetime.today().date()
     parsedDeadlines = []
@@ -292,9 +256,6 @@ if __name__ == "__main__":
         exit(1)
     args = parse_args()
     deadlines, patterns = fetch_assignments(args.debug)
-
-    if args.whatsapp:
-        display_whatsapp_formatted_deadlines(deadlines)
-    else:
-        display_deadlines(deadlines, args.kde, args.ntfy)
+    
+    display_deadlines(deadlines, args.kde, args.ntfy)
     cleanup_old_files(download_dir, patterns, args.debug)
