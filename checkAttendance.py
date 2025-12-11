@@ -10,11 +10,12 @@ enrollment_number = os.getenv("ENROLLMENT_NUMBER", "")
 password = os.getenv("PASSWORD", "")
 data_dir = os.getenv("USER_DATA_DIR", "")
 
+def format_number(n):
+    return f"{n:.2f}".rstrip('0').rstrip('.')
+
 def loginToCMS(page, browser, debug_mode: bool):
     """Handles login and cookie persistence."""
     page.goto("https://cms.bahria.edu.pk/Logins/Student/Login.aspx")
-    sleep(15)
-
     if "Login.aspx" in page.url:
         if debug_mode:
             print("Login required. Navigating to login page...")
@@ -23,17 +24,13 @@ def loginToCMS(page, browser, debug_mode: bool):
         page.select_option("#BodyPH_ddlInstituteID", "1")
         page.click("#pageContent > div.container-fluid > div.row > div > div:nth-child(6)")
 
-        lms_button = page.wait_for_selector("#sideMenuList > a:nth-child(16)")
-        page.evaluate("el => el.removeAttribute('target')", lms_button)
-        lms_button.click()
-
         persistCookies(browser, debug_mode)
 
 def persistCookies(browser, debug_mode: bool):
     """Makes CMS cookies persistent for a year."""
     cookies = browser.cookies()
     for cookie in cookies:
-        if cookie["name"] in ["cms", "PHPSESSID"]:
+        if cookie["name"] == "cms":
             cookie["expires"] = datetime.now().timestamp() + 31536000
             cookie["session"] = False
             browser.add_cookies([cookie])
@@ -75,21 +72,22 @@ def scrapeAttendance(page: Page, debug_mode: bool):
         subject = cells[2].inner_text().strip()
         credits = cells[3].inner_text().strip()
         absences = cells[10].inner_text().strip()
+
         if(subject.split()[-1] == "Lab"):
-            max_absences = float(credits) * 12
+            max_absences = int(credits) * 12
         else:
-            max_absences = float(credits) * 4
+            max_absences = int(credits) * 4
         absences_remaining = max_absences - float(absences)
 
         if subject.split()[-1] == "Lab":
-            print(f"\033[1;97m{subject}\033[0m: {absences_remaining / (float(credits) * 3)}/{max_absences / (float(credits) * 3)}")
+            print(f"\033[1;97m{subject}\033[0m: {format_number(absences_remaining / (int(credits) * 3))}/{int(max_absences / (int(credits) * 3))}")
         else:
-            print(f"\033[1;97m{subject}\033[0m: {absences_remaining / float(credits) * 2}/{max_absences / float(credits) * 2}")
+            print(f"\033[1;97m{subject}\033[0m: {format_number((absences_remaining / int(credits) * 2))}/{int(max_absences / int(credits) * 2)}")
 
 
 def parseArgs():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--debug", action="store_true", help="Enable debug mode")
+    parser.add_argument("--debug", "-d", action="store_true", help="Enable debug mode")
     return parser.parse_args()
 
 if __name__ == "__main__":

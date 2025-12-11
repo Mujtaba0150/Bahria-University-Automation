@@ -51,13 +51,25 @@ def parse_args():
 
 def check_and_login(page, browser, debug_mode: bool):
     page.goto("https://lms.bahria.edu.pk/Student/Assignments.php")
+    if  ("https://lms.bahria.edu.pk/" in page.url):
+        logged_in = page.locator("body > div > header > nav > div > ul > li.dropdown.user.user-menu > ul > li.user-header > p").text_content().strip()
+        if enrollment_number not in logged_in:
+            page.click("body > div > header > nav > div > ul > li.dropdown.user.user-menu")
+            page.click("body > div > header > nav > div > ul > li.dropdown.user.user-menu.open > ul > li.user-footer > div.pull-right")
+            if "Login.aspx" not in page.url:
+                page.click("#AccountsNavbar > ul")
+                page.click("#ProfileInfo_hlLogoff")
+            if debug_mode:
+                print("User logged out")
+    
     if "cms.bahria.edu.pk" in page.url:
         page.goto("https://cms.bahria.edu.pk/Logins/Student/Login.aspx")
-        page.fill("#BodyPH_tbEnrollment", enrollment_number)
-        page.fill("#BodyPH_tbPassword", password)
-        page.select_option("#BodyPH_ddlInstituteID", "1")
-        page.click("#pageContent > div.container-fluid > div.row > div > div:nth-child(6)")
-
+        if "Login.aspx" in page.url:
+            page.fill("#BodyPH_tbEnrollment", enrollment_number)
+            page.fill("#BodyPH_tbPassword", password)
+            page.select_option("#BodyPH_ddlInstituteID", "1")
+            page.click("#pageContent > div.container-fluid > div.row > div > div:nth-child(6)")
+    
         lms_button = page.wait_for_selector("#sideMenuList > a:nth-child(16)")
         page.evaluate("el => el.removeAttribute('target')", lms_button)
         lms_button.click()
@@ -70,7 +82,6 @@ def check_and_login(page, browser, debug_mode: bool):
                 browser.add_cookies([cookie])
                 if debug_mode:
                     print(f"Made {cookie['name']} cookie persistent.")
-
 
 def download_assignment_file(page, subject_name: str, assignment_name: str, deadline_date: str, assignment_link: str) -> str:
     """
@@ -107,7 +118,6 @@ def cleanup_old_files(download_dir: str, patterns: list, debug_mode: bool):
 
     for path in allFiles:
         if os.path.isdir(path):
-            # Skip directories for now; we'll handle empty dirs later
             continue
         if path not in keepFiles:
             try:
@@ -155,7 +165,6 @@ def fetch_assignments(debug_mode: bool) -> tuple[list, list]:
             ]
         )
         page = browser.pages[0]
-
         check_and_login(page, browser, debug_mode)
         page.click("body > div > aside > section > ul > li:nth-child(5)")
 
@@ -175,7 +184,7 @@ def fetch_assignments(debug_mode: bool) -> tuple[list, list]:
                 if "Submit" in action_col or "Delete" in action_col: # pyright: ignore[reportOperatorIssue]
                     assignment_name = cells[1].text_content().strip() # pyright: ignore[reportOptionalMemberAccess]
                     assignment_link = f"https://lms.bahria.edu.pk/Student/{cells[2].locator('a').get_attribute('href')}"
-                    deadline_date = cells[7].locator("small").first.text_content()
+                    deadline_date = cells[7].locator("small").first.text_content().split('-')[0].strip() # pyright: ignore[reportOptionalMemberAccess]
 
                     pattern = download_assignment_file(page, subject_name, assignment_name, deadline_date, assignment_link) # pyright: ignore[reportArgumentType]
 
@@ -283,7 +292,6 @@ if __name__ == "__main__":
         exit(1)
     args = parse_args()
     deadlines, patterns = fetch_assignments(args.debug)
-    deadlines = [(d[0], d[1].split('-')[0].strip()) for d in deadlines]
 
     if args.whatsapp:
         display_whatsapp_formatted_deadlines(deadlines)
