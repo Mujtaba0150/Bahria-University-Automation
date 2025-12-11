@@ -2,6 +2,7 @@ from playwright.sync_api import sync_playwright
 from datetime import datetime
 from dotenv import load_dotenv
 import os
+import platform
 import argparse
 from time import sleep
 
@@ -9,11 +10,18 @@ load_dotenv()
 enrollment_number = os.getenv("ENROLLMENT_NUMBER", "")
 password = os.getenv("PASSWORD", "")
 
-def loginToCMS(page, browser, debug_mode: bool):
+def clear_terminal():
+    if platform.system() == "Windows":
+        os.system("cls")
+    else:
+        os.system("clear")
+
+
+def login_to_CMS(page, browser, debug_mode: bool):
     """Handles login and cookie persistence."""
     page.goto("https://cms.bahria.edu.pk/Sys/Student/QualityAssurance/QualityAssuranceSurveys.aspx")
     
-    if "Login.aspx" in page.url or "Default.aspx" in page.url:
+    if "Login.aspx" in page.url in page.url:
         if debug_mode:
             print("Login required. Navigating to login page...")
 
@@ -23,18 +31,18 @@ def loginToCMS(page, browser, debug_mode: bool):
         page.select_option("#BodyPH_ddlInstituteID", "1")
         page.click("#pageContent > div.container-fluid > div.row > div > div:nth-child(6)")
 
-        lms_button = page.wait_for_selector("#sideMenuList > a:nth-child(16)")
-        page.evaluate("el => el.removeAttribute('target')", lms_button)
-        lms_button.click()
+        persist_cookies(browser, debug_mode)
+        page.goto("https://cms.bahria.edu.pk/Sys/Student/QualityAssurance/QualityAssuranceSurveys.aspx")
+    else:
+        return
 
-        persistCookies(browser, debug_mode)
 
 
-def persistCookies(browser, debug_mode: bool):
+def persist_cookies(browser, debug_mode: bool):
     """Makes CMS cookies persistent for a year."""
     cookies = browser.cookies()
     for cookie in cookies:
-        if cookie["name"] in ["cms", "PHPSESSID"]:
+        if cookie["name"] == "cms":
             cookie["expires"] = datetime.now().timestamp() + 31536000
             cookie["session"] = False
             browser.add_cookies([cookie])
@@ -42,7 +50,7 @@ def persistCookies(browser, debug_mode: bool):
                 print(f"Made {cookie['name']} cookie persistent.")
 
 # Format: BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_{section}_rbl_{question_number}_{option}_{question_number}
-def fillSurvey(page, debug_mode: bool, option: int):
+def fill_survey(page, debug_mode: bool, option: int):
     # Detect which survey is loaded
     heading_element = page.wait_for_selector("#BodyPH_surveyUserControl_lbName")
     heading_text = heading_element.inner_text()
@@ -70,11 +78,17 @@ def fillSurvey(page, debug_mode: bool, option: int):
 
     # Fill the survey
     for group_index, question_count in groups.items():
-        for n in range(question_count):
-            input_id = (
-                f"BodyPH_surveyUserControl_repeaterQuestionGroups_"
-                f"repeaterQuestions_{group_index}_rbl_{n}_{option}_{n}"
-            )
+        for question_number in range(question_count):
+            if question_number == 0 and group_index == 1 and groups == course_groups:
+                input_id = (
+                    f"BodyPH_surveyUserControl_repeaterQuestionGroups_"
+                    f"repeaterQuestions_{group_index}_rbl_{question_number}_{4}_{question_number}"
+                )
+            else:
+                input_id = (
+                    f"BodyPH_surveyUserControl_repeaterQuestionGroups_"
+                    f"repeaterQuestions_{group_index}_rbl_{question_number}_{option}_{question_number}"
+                )
             selector = f"#{input_id}"
 
             try:
@@ -86,6 +100,31 @@ def fillSurvey(page, debug_mode: bool, option: int):
                 if debug_mode:
                     print(f"Failed to click ({input_id}): {e}")
 
+    if groups == course_groups: 
+            
+            # Demographic Information
+    
+            # Fulltime/Parttime
+            page.wait_for_selector("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_0_1_0", timeout=2000)
+            page.click("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_0_1_0")
+    
+    
+            # Disabled/Non-Disabled
+            page.wait_for_selector("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_1_1_1", timeout=2000)
+            page.click("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_1_1_1")
+    
+            # Male/Female
+            page.wait_for_selector("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_3_0_3", timeout=2000)
+            page.click("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_3_0_3")
+    
+            # Age:>22/22-29/>29
+            page.wait_for_selector("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_4_0_4", timeout=2000)
+            page.click("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_4_0_4")
+    
+            # On Campus/Off Campus
+            page.wait_for_selector("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_5_1_5", timeout=2000)
+            page.click("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_5_1_5")
+    
     # Submit
     submit_selector = "#BodyPH_surveyUserControl_btnSubmit"
     page.click(submit_selector)
@@ -93,41 +132,164 @@ def fillSurvey(page, debug_mode: bool, option: int):
     if debug_mode:
         print(f"Clicked: {submit_selector}")
 
-def handleSurveys(page, debug_mode: bool, option: int):
+def fill_custom_survey(page, currently_filling, debug_mode: bool):
+    """Handles custom surveys not following standard format."""
+    if debug_mode:
+        print("Custom survey detected. Manual intervention required.")
+    
+    clear_terminal()
+    print(currently_filling + "\n")
+    choice = int(input("Do you want to fill the same value for all questions? (0=Yes, 1=No): "))
+
+    if choice == 0:
+        selected_option = int(input(
+            "Select your default answer option (0=Strongly Agree, 1=Agree, 2=Uncertain, 3=Disagree, 4=Strongly Disagree): "
+        ))
+        fill_survey(page, debug_mode, selected_option)
+    
+    else:
+        # Detect which survey is loaded
+        heading_element = page.wait_for_selector("#BodyPH_surveyUserControl_lbName")
+        heading_text = heading_element.inner_text()
+
+        # Question groups for both survey types
+        teacher_groups = {
+            0: 13,
+            1: 5
+        }
+
+        course_groups = {
+            0: 3,
+            1: 3,
+            2: 4,
+            3: 4,
+            4: 3,
+            5: 3,
+            6: 4,
+            7: 3,
+            8: 2
+        }
+
+        # Pick correct mapping
+        groups = teacher_groups if "Teacher Evaluation Form" in heading_text else course_groups
+        for group_index, question_count in groups.items():
+            for question_number in range(question_count):
+                question_selector = f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_{group_index}_divOptions_{question_number} > label"
+                question = page.query_selector(question_selector)
+                if question:
+                    clear_terminal()
+                    print(currently_filling + "\n")
+                    print(f"Question: {question.inner_text().strip()}")
+                    if question_number == 0 and group_index == 1 and groups == course_groups:
+                        selected_option = int(input(
+                            "Select your answer option (0=<21%, 1=21-40%, 2=41-60%, 3=61-80%, 4=>80%): "
+                        ))
+                    else:
+                        selected_option = int(input(
+                            "Select your answer option (0=Strongly Agree, 1=Agree, 2=Uncertain, 3=Disagree, 4=Strongly Disagree): "
+                        ))
+                    input_id = (
+                        f"BodyPH_surveyUserControl_repeaterQuestionGroups_"
+                        f"repeaterQuestions_{group_index}_rbl_{question_number}_{selected_option}_{question_number}"
+                    )
+                    selector = f"#{input_id}"
+                    try:
+                        page.wait_for_selector(selector, timeout=2000)
+                        page.click(selector)
+                        if debug_mode:
+                            print(f"Clicked: {input_id}")
+                    except Exception as e:
+                        if debug_mode:
+                            print(f"Failed to click ({input_id}): {e}")
+        if groups == course_groups: 
+            # Demographic Information
+
+            # Fulltime/Parttime
+            page.wait_for_selector("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_0_1_0", timeout=2000)
+            page.click("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_0_1_0")
+
+
+            # Disabled/Non-Disabled
+            page.wait_for_selector("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_1_1_1", timeout=2000)
+            page.click("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_1_1_1")
+
+            # Male/Female
+            page.wait_for_selector("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_3_0_3", timeout=2000)
+            page.click("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_3_0_3")
+
+            # Age:>22/22-29/>29
+            page.wait_for_selector("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_4_0_4", timeout=2000)
+            page.click("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_4_0_4")
+
+            # On Campus/Off Campus
+            page.wait_for_selector("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_5_1_5", timeout=2000)
+            page.click("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_5_1_5")
+
+        # Submit
+        submit_selector = "#BodyPH_surveyUserControl_btnSubmit"
+        page.click(submit_selector)
+
+def handle_surveys(page, debug_mode: bool, option: int):
     """Finds and fills all pending surveys."""
     page.goto("https://cms.bahria.edu.pk/Sys/Student/QualityAssurance/QualityAssuranceSurveys.aspx")
     page.wait_for_selector("#BodyPH_gvSurveyConducts")
 
-    while True:
-        rows = page.query_selector_all("#BodyPH_gvSurveyConducts > tbody > tr")
+    rows = page.query_selector_all("#BodyPH_gvSurveyConducts > tbody > tr")
+    survey_data = extractSurveyData(rows, debug_mode)
+    clear_terminal()
+    for survey in survey_data:
+        print(f"{survey['sr_no']}: {survey['course']} - {survey['teacher']}({survey['survey_name']})")
 
-        if len(rows) == 0:
-            break
+    custom_input = input("\nEnter the survey numbers to fill manually (comma-separated), or press Enter to fill all: ")
+    custom_input = [x.strip() for x in custom_input.split(",")]
+    
+    for survey in survey_data:
+        survey_url = "https://cms.bahria.edu.pk/Sys/Student/QualityAssurance/" + survey["url"]
+        page.goto(survey_url)
+        
+        currently_filling = f"Filling survey: {survey['course']} - {survey['teacher']}({survey['survey_name']})"
+        
+        if survey["sr_no"] in custom_input:
+            fill_custom_survey(page, currently_filling, debug_mode)
+        else:
+            fill_survey(page, debug_mode, option)
 
-        survey_links = extractSurveyLinks(rows, debug_mode)
-
-        if not survey_links:
-            break
-
-        for href in survey_links:
-            survey_url = "https://cms.bahria.edu.pk/Sys/Student/QualityAssurance/" + href
-            page.goto(survey_url)
-            fillSurvey(page, debug_mode, option)
-            page.goto("https://cms.bahria.edu.pk/Sys/Student/QualityAssurance/QualityAssuranceSurveys.aspx")
-            page.wait_for_selector("#BodyPH_gvSurveyConducts")
-
-def extractSurveyLinks(rows, debug_mode: bool):
+def extractSurveyData(rows, debug_mode: bool):
     """Extracts survey URLs from table rows."""
-    survey_links = []
+    survey_data = []
     for row in rows:
+        sr_no = row.query_selector("td:nth-child(1)")
+        survey_name_cell = row.query_selector("td:nth-child(3)")
+        course_cell = row.query_selector("td:nth-child(4)")
+        teacher_cell = row.query_selector("td:nth-child(5)")
         link = row.query_selector("td:last-child a")
+
+        course_title = course_cell.evaluate("""
+        (element) => {
+            return Array.from(element.childNodes)
+                .filter(node => node.nodeType === Node.TEXT_NODE)
+                .map(node => node.textContent.trim())
+                .filter(text => text.length > 0)[0] || "";
+        }
+        """)
+
         if link:
             href = link.get_attribute("href")
             if href and "SurveyStudentCourseWise" in href:
-                survey_links.append(href)
+                teacher_name = teacher_cell.inner_text().strip() if teacher_cell else None
+                sr_no_text = sr_no.inner_text().strip() if sr_no else None
+                survey_name = survey_name_cell.inner_text().strip() if survey_name_cell else "None"
+                
+                survey_data.append({
+                    "sr_no": sr_no_text,
+                    "survey_name": survey_name[:-16].strip(),
+                    "url": href,
+                    "teacher": teacher_name,
+                    "course": course_title
+                })
     if debug_mode:
-        print(f"Extracted {len(survey_links)} survey links.")
-    return survey_links
+        print(f"Extracted {len(survey_data)} surveys.")
+    return survey_data
 
 def startPlaywright(debug_mode: bool):
     """Launches persistent browser and runs survey automation."""
@@ -156,23 +318,21 @@ def startPlaywright(debug_mode: bool):
 
 def parseArgs():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--debug", action="store_true", help="Enable debug mode")
+    parser.add_argument("--debug", "-d", action="store_true", help="Enable debug mode")
     return parser.parse_args()
 
 if __name__ == "__main__":
     args = parseArgs()
 
-    # ask which option to use
     chosen_option = int(input(
-        "Select your answer option (0=Strongly Agree, 1=Agree, 2=Uncertain, 3=Disagree, 4=Strongly Disagree): "
+        "Select your default answer option (0=Strongly Agree, 1=Agree, 2=Uncertain, 3=Disagree, 4=Strongly Disagree): "
     ))
 
     with sync_playwright() as p:
         browser = startPlaywright(args.debug)
         page = browser.pages[0]
-        loginToCMS(page, browser, args.debug)
+        login_to_CMS(page, browser, args.debug)
 
-        # pass the chosen option to survey handling
-        handleSurveys(page, args.debug, chosen_option)
+        handle_surveys(page, args.debug, chosen_option)
 
         browser.close()
