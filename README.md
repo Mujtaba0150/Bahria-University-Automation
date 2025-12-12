@@ -67,7 +67,7 @@ A collection of Python automation scripts to streamline common tasks for Bahria 
 |----------|-------------|-------------|
 | `ENROLLMENT_NUMBER` | All scripts | Your Bahria University enrollment number |
 | `PASSWORD` | All scripts | Your CMS password |
-| `USER_DATA_DIR` | All scripts | Path to persistent browser profile (e.g., `/home/username/.config/ms-playwright`) |
+| `USER_DATA_DIR` | All scripts | Path to persistent browser profile (e.g., `/home/username/.config/ms-playwright`, `C:\Users\username\AppData\Local\ms-playwright`) |
 | `DOWNLOAD_DIR` | `checkAssignments.py` | Directory where assignment files will be downloaded |
 
 #### Optional Variables (for fillSurveys.py)
@@ -98,9 +98,9 @@ python checkAssignments.py
 | `-d`, `--debug` | Enable debug mode (shows browser window and detailed logs) |
 | `-k DEVICE_ID`, `--kde DEVICE_ID` | Send notifications via KDE Connect to specified device |
 | `-n SERVER`, `--ntfy SERVER` | Send notifications via Ntfy.sh server |
-| `-w`, '--whatsapp'| Format the assignment deadlines for the WhatsApp group description |
+| `-w`, `--whatsapp` | Format the assignment deadlines for the WhatsApp group description |
 
-**Note:** The WhatsApp flag requires adding subject abbreviations to the code beforehand and cannot be used with -k or -n. Feel free to contribute and add more abbreviations for your subjects to the script as required.
+**Note:** The WhatsApp flag requires adding subject abbreviations to the code beforehand and cannot be used with `-k` or `-n`. Feel free to contribute and add more abbreviations for your subjects to the script as required.
 
 **Examples:**
 ```bash
@@ -118,7 +118,7 @@ python checkAssignments.py --debug --kde your_device_id
 ```
 
 **Color-Coded Output:**
-- 🔴 **Red**: Due today (triggers notifications)
+- 🔴 **Red**: Due today (triggers notifications with `-k` or `-n`)
 - 🟡 **Yellow(Bright)**: Due within 1 day
 - 🟡 **Yellow(Medium)**: Due within 2 days
 - 🟡 **Yellow(Dark)**: Due within 3-4 days
@@ -161,7 +161,9 @@ python fillSurveys.py
 **Debug Mode:**
 ```bash
 python fillSurveys.py --debug
+
 # or
+
 python fillSurveys.py -d
 ```
 

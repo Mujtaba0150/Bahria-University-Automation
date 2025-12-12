@@ -13,9 +13,9 @@ data_dir = os.getenv("USER_DATA_DIR", "")
 def format_number(n):
     return f"{n:.2f}".rstrip('0').rstrip('.')
 
-def loginToCMS(page, browser, debug_mode: bool):
+def check_and_login_to_CMS(browser, page, debug_mode: bool):
     """Handles login and cookie persistence."""
-    page.goto("https://cms.bahria.edu.pk/Logins/Student/Login.aspx")
+    page.goto("https://cms.bahria.edu.pk/Sys/Student/ClassAttendance/StudentWiseAttendance.aspx")
     if "Login.aspx" in page.url:
         if debug_mode:
             print("Login required. Navigating to login page...")
@@ -24,9 +24,21 @@ def loginToCMS(page, browser, debug_mode: bool):
         page.select_option("#BodyPH_ddlInstituteID", "1")
         page.click("#pageContent > div.container-fluid > div.row > div > div:nth-child(6)")
 
-        persistCookies(browser, debug_mode)
+        persist_cookies(browser, debug_mode)
+        page.goto("https://cms.bahria.edu.pk/Sys/Student/ClassAttendance/StudentWiseAttendance.aspx")
 
-def persistCookies(browser, debug_mode: bool):
+    else:
+        logged_in_enrollment_number = page.locator("#ProfileInfo_lblUsername").text_content().strip()
+        if enrollment_number not in logged_in_enrollment_number:
+            if debug_mode:
+                print("Logged in with a different account. Logging out...")
+            page.click("#AccountsNavbar > ul")
+            page.click("#ProfileInfo_hlLogoff")
+            check_and_login_to_CMS(page, browser, debug_mode)
+
+
+
+def persist_cookies(browser, debug_mode: bool):
     """Makes CMS cookies persistent for a year."""
     cookies = browser.cookies()
     for cookie in cookies:
@@ -37,7 +49,7 @@ def persistCookies(browser, debug_mode: bool):
             if debug_mode:
                 print(f"Made {cookie['name']} cookie persistent.")
 
-def startPlaywright(debug_mode: bool) -> BrowserContext:
+def start_playwright(debug_mode: bool) -> BrowserContext:
     """Launches persistent browser and runs survey automation."""
     browser = p.chromium.launch_persistent_context(
         user_data_dir=data_dir,
@@ -62,16 +74,23 @@ def startPlaywright(debug_mode: bool) -> BrowserContext:
 
     return browser
 
-def scrapeAttendance(page: Page, debug_mode: bool):
+def scrape_attendance(page: Page, debug_mode: bool):
     """Multiply by 4 so for 1 credit hour course u can be absent for 4 hours, for 2 u can be absent for 8 etc (it works slightly differently for lab because it has 3 contact hours so u can be absent for 12 hours)."""
 
-    page.goto("https://cms.bahria.edu.pk/Sys/Student/ClassAttendance/StudentWiseAttendance.aspx")
     rows = page.locator("#pageContent > div.container-fluid > div.table-responsive > table > tbody > tr").all()
     for row in rows:
         cells = row.locator("td").all()
         subject = cells[2].inner_text().strip()
         credits = cells[3].inner_text().strip()
         absences = cells[10].inner_text().strip()
+
+        if debug_mode:
+            print(f"Processing subject: {subject}, Credits: {credits}, Absences: {absences}")
+
+        if credits == "0":
+            credits = "1"
+            if debug_mode:
+                print(f"Credits for {subject} was 0, setting to 1 to avoid division by zero.")
 
         if(subject.split()[-1] == "Lab"):
             max_absences = int(credits) * 12
@@ -85,7 +104,7 @@ def scrapeAttendance(page: Page, debug_mode: bool):
             print(f"\033[1;97m{subject}\033[0m: {format_number((absences_remaining / int(credits) * 2))}/{int(max_absences / int(credits) * 2)}")
 
 
-def parseArgs():
+def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--debug", "-d", action="store_true", help="Enable debug mode")
     return parser.parse_args()
@@ -95,9 +114,9 @@ if __name__ == "__main__":
         print("Error: ENROLLMENT_NUMBER, PASSWORD, and USER_DATA_DIR must be set in the .env file.")
         exit(1)
     with sync_playwright() as p:
-        args = parseArgs()
-        browser = startPlaywright(args.debug)
+        args = parse_args()
+        browser = start_playwright(args.debug)
         page = browser.pages[0]
-        loginToCMS(page, browser, args.debug)
-        scrapeAttendance(page, args.debug)
+        check_and_login_to_CMS(browser, page, args.debug)
+        scrape_attendance(page, args.debug)
         browser.close()
