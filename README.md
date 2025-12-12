@@ -98,6 +98,9 @@ python checkAssignments.py
 | `-d`, `--debug` | Enable debug mode (shows browser window and detailed logs) |
 | `-k DEVICE_ID`, `--kde DEVICE_ID` | Send notifications via KDE Connect to specified device |
 | `-n SERVER`, `--ntfy SERVER` | Send notifications via Ntfy.sh server |
+| `-w`, '--whatsapp'| Format the assignment deadlines for the WhatsApp group description |
+
+**Note:** The WhatsApp flag requires adding subject abbreviations to the code beforehand and cannot be used with -k or -n. Feel free to contribute and add more abbreviations for your subjects to the script as required.
 
 **Examples:**
 ```bash
@@ -106,6 +109,9 @@ python checkAssignments.py --debug
 
 # Send KDE Connect notifications
 python checkAssignments.py --kde your_device_id
+
+# Format for WhatsApp group description
+python checkAssignments.py --whatsapp
 
 # Combine options
 python checkAssignments.py --debug --kde your_device_id
@@ -205,6 +211,7 @@ The `checkAssignments.py` script:
 - Assignment deadlines are downloaded and organized automatically
 - Attendance calculations follow standard university policies (25% absence limit) which may change in the future
 - It is recommended to make an alias on Linux in the ~/.bashrc file or a batch file in Windows to a path in the PATH environment variable, to make it easier to run the scripts
+- A task scheduler script in Windows, and a systemd .service file can also be created to automate deadline notifications
 
 ## Contributing
 
