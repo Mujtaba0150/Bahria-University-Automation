@@ -4,12 +4,6 @@ A collection of Python automation scripts to streamline common tasks for Bahria 
 
 ## Features
 
-### Survey Automation (`fillSurveys.py`)
-- Automatically fills quality assurance surveys (Teacher Evaluation and Course Evaluation)
-- Supports both automatic and manual filling modes
-- Persistent browser sessions for seamless authentication
-- Option to customize responses for individual surveys
-
 ### Assignment Tracker (`checkAssignments.py`)
 - Fetches all pending assignments from LMS
 - Differentiates between extended and not extended assignments
@@ -24,6 +18,12 @@ A collection of Python automation scripts to streamline common tasks for Bahria 
 - Handles both regular courses and lab courses differently
 - Clean, formatted output with subject-wise breakdown
 
+### Survey Automation (`fillSurveys.py`)
+- Automatically fills quality assurance surveys (Teacher Evaluation and Course Evaluation)
+- Supports both automatic and manual filling modes
+- Persistent browser sessions for seamless authentication
+- Option to customize responses for individual surveys
+
 ## Requirements
 
 - Python 3.8+
@@ -33,11 +33,60 @@ A collection of Python automation scripts to streamline common tasks for Bahria 
 
 ## Installation
 
+### Automated Setup (Recommended)
+
+The repository includes automated setup scripts that handle Python installation, dependency management, environment configuration, and PATH setup.
+
+#### Windows
+
+Run the batch script with administrator privileges (if installing for all users):
+
+```bat
+setup.bat
+```
+
+The script will:
+1. Check for Python installation (install via winget if missing)
+2. Upgrade pip and install all required dependencies from `requirements.txt`
+3. Prompt you to enter all required environment variables
+4. Create a `.env` file automatically
+5. Ask whether to install for current user or all users:
+   - **Current user only**: Adds script directory to user PATH
+   - **All users**: Adds script directory to system PATH (requires administrator privileges)
+6. Create command aliases for easy script execution
+
+After setup completes, restart your terminal to apply PATH changes.
+
+#### Linux / macOS
+
+Run the bash script:
+
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+The script will:
+1. Check for Python installation (install via package manager if missing)
+2. Upgrade pip and install all required dependencies from `requirements.txt`
+3. Prompt you to enter all required environment variables
+4. Create a `.env` file automatically
+5. Ask whether to install for current user or all users:
+   - **Current user only**: Adds script directory to user PATH (via ~/.bashrc, ~/.zshrc, or ~/.profile)
+   - **All users**: Adds script directory to system PATH at /etc/profile.d/ (requires sudo)
+6. Create aliases in your shell configuration file (bash/zsh) or as standalone executable scripts
+
+After setup completes, restart your terminal to apply PATH changes.
+
+### Manual Setup
+
+If you prefer manual installation:
+
 1. **Clone or download the repository**
 
 2. **Install Python dependencies**
    ```bash
-   pip install playwright python-dotenv requests
+   pip install -r requirements.txt
    ```
 
 3. **Install Playwright browsers**
@@ -126,6 +175,12 @@ python checkAssignments.py --debug --kde your_device_id
 - 🟢 **Green (Medium)**: Due within 8-14 days
 - 🟢 **Green (Dark)**: Due after 14 days
 
+**Screenshot**
+
+![Check Assignments Screenshot](images/checkAssignments.png)
+
+`13.5s`, that is less time to check and download all the assignments than it usually takes just to log into the LMS.
+
 ---
 
 ### Check Attendance
@@ -148,7 +203,12 @@ python checkAttendance.py -d
 - Different calculations for lab courses (3 contact hours) vs regular courses
 - Formula: Maximum absences = Credit hours × 4 (regular) or Credit hours × 12 (lab)
 
+**Screenshot**
+
+![Check Attendance Screenshot](images/checkAttendance.png)
+
 ---
+
 
 ### Fill Surveys
 
@@ -212,7 +272,7 @@ The `checkAssignments.py` script:
 - Survey structure may change over time; the scripts may need updates
 - Assignment deadlines are downloaded and organized automatically
 - Attendance calculations follow standard university policies (25% absence limit) which may change in the future
-- It is recommended to make an alias on Linux in the ~/.bashrc file or a batch file in Windows to a path in the PATH environment variable, to make it easier to run the scripts
+- The automated setup scripts (`setup.bat` for Windows, `setup.sh` for Linux/macOS) create command aliases automatically for easier script execution
 - A task scheduler script in Windows, and a systemd .service file can also be created to automate deadline notifications
 
 ## Contributing
