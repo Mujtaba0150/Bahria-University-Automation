@@ -146,8 +146,9 @@ python checkAssignments.py
 |--------|-------------|
 | `-d`, `--debug` | Enable debug mode (shows browser window and detailed logs) |
 | `-k DEVICE_ID`, `--kde DEVICE_ID` | Send notifications via KDE Connect to specified device |
-| `-n SERVER`, `--ntfy SERVER` | Send notifications via Ntfy.sh server |
+| `-N SERVER`, `--ntfy SERVER` | Send notifications via Ntfy.sh server |
 | `-w`, `--whatsapp` | Format the assignment deadlines for the WhatsApp group description |
+| `-n SERVER` | Do not download assignments (useful when internet is slow or on mobile data) |
 
 **Note:** The WhatsApp flag requires adding subject abbreviations to the code beforehand and cannot be used with `-k` or `-n`. Feel free to contribute and add more abbreviations for your subjects to the script as required.
 

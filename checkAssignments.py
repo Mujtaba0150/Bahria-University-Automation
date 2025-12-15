@@ -51,7 +51,8 @@ def parse_args():
     '''Parses command line arguments.'''
     parser = argparse.ArgumentParser()
     parser.add_argument("-k", "--kde", action="store", help="Send notifications via KDE Connect using Device ID")
-    parser.add_argument("-n", "--ntfy", action="store", help="Send notifications via Ntfy using Server")
+    parser.add_argument("-N", "--ntfy", action="store", help="Send notifications via Ntfy using Server")
+    parser.add_argument("-n", action="store_true", dest="check_assignments", help="Don't download assignments")
     parser.add_argument("-w", "--whatsapp", action="store_true", help="Format for WhatsApp Message")
     parser.add_argument("-d", "--debug", action="store_true", help="Enable debug mode")
     return parser.parse_args()
@@ -194,7 +195,7 @@ def cleanup_old_files(download_dir: str, patterns: list, debug_mode: bool):
                 except Exception as e:
                     print(f"Error deleting directory {full_path}: {e}")
 
-def fetch_assignments(page: Page, debug_mode: bool) -> tuple[list, list]:
+def fetch_assignments(page: Page, check_assignments:bool, debug_mode: bool) -> tuple[list, list]:
     '''Fetches assignments from the LMS and returns assignments with deadlines and patterns of downloaded files so that old assignment files can be cleaned up.'''
     deadlines = []
     patterns = []
@@ -214,13 +215,16 @@ def fetch_assignments(page: Page, debug_mode: bool) -> tuple[list, list]:
             action_class = cells[7].locator("small").first.get_attribute("class")
             if "Submit" in action_col or "Delete" in action_col: # pyright: ignore[reportOperatorIssue]
                 assignment_name = cells[1].text_content().strip() # pyright: ignore[reportOptionalMemberAccess]
-                assignment_link = f"https://lms.bahria.edu.pk/Student/{cells[2].locator('a').get_attribute('href')}"
                 deadline_date = cells[7].locator("small").first.text_content().split('-')[0].strip() # pyright: ignore[reportOptionalMemberAccess]
-                pattern = download_assignment_file(page, subject_name, assignment_name, deadline_date, assignment_link) # pyright: ignore[reportArgumentType]
+                
+                if not check_assignments:
+                    assignment_link = f"https://lms.bahria.edu.pk/Student/{cells[2].locator('a').get_attribute('href')}"
+                    pattern = download_assignment_file(page, subject_name, assignment_name, deadline_date, assignment_link) # pyright: ignore[reportArgumentType]
+                    patterns.append(pattern)
+                
                 if deadline_date:
                     deadlines.append((subject_name, deadline_date, action_class))
-                
-                patterns.append(pattern)
+
 
     return deadlines, patterns
 
@@ -325,7 +329,7 @@ if __name__ == "__main__":
         browser = start_playwright(args.debug)
         page = browser.pages[0]
         check_and_login(page, args.debug)
-        deadlines, patterns = fetch_assignments(page, args.debug)
+        deadlines, patterns = fetch_assignments(page, args.check_assignments, args.debug)
         browser.close()
 
     clear_terminal()
