@@ -9,6 +9,7 @@ load_dotenv()
 enrollment_number = os.getenv("ENROLLMENT_NUMBER", "")
 password = os.getenv("PASSWORD", "")
 data_dir = os.getenv("USER_DATA_DIR", "")
+instituition = int(os.getenv("INSTITUTION", "6"))
 
 def format_number(n):
     return f"{n:.2f}".rstrip('0').rstrip('.')
@@ -22,7 +23,7 @@ def check_and_login_to_CMS(browser, page, debug_mode: bool):
         page.fill("#BodyPH_tbEnrollment", enrollment_number)
         page.fill("#BodyPH_tbPassword", password)
         page.select_option("#BodyPH_ddlInstituteID", "1")
-        page.click("#pageContent > div.container-fluid > div.row > div > div:nth-child(6)")
+        page.click(f"#pageContent > div.container-fluid > div.row > div > div:nth-child({instituition})")
 
         persist_cookies(browser, debug_mode)
         page.goto("https://cms.bahria.edu.pk/Sys/Student/ClassAttendance/StudentWiseAttendance.aspx")
@@ -110,13 +111,52 @@ def parse_args():
     return parser.parse_args()
 
 if __name__ == "__main__":
-    if enrollment_number == "" or password == "" or data_dir == "":
-        print("Error: ENROLLMENT_NUMBER, PASSWORD, and USER_DATA_DIR must be set in the .env file.")
-        exit(1)
-    with sync_playwright() as p:
+    try:
+        if enrollment_number == "" or password == "" or data_dir == "":
+            print("Error: ENROLLMENT_NUMBER, PASSWORD, and USER_DATA_DIR must be set in the .env file.")
+            exit(1)
+
         args = parse_args()
-        browser = start_playwright(args.debug)
-        page = browser.pages[0]
-        check_and_login_to_CMS(browser, page, args.debug)
-        scrape_attendance(page, args.debug)
-        browser.close()
+        browser = None
+
+        try:
+            with sync_playwright() as p:
+                browser = start_playwright(args.debug)
+                page = browser.pages[0]
+                check_and_login_to_CMS(browser, page, args.debug)
+                scrape_attendance(page, args.debug)
+                browser.close()
+
+        except Exception as e:
+            error_message = str(e)
+
+            if e == TimeoutError:
+                print("Operation timed out. The LMS or CMS might be down or unresponsive.")
+
+            elif ("ERR_INTERNET_DISCONNECTED" in error_message):
+                print("No internet connection. Please check your connection and try again.")
+
+            else:
+                timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                errorDir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "error_logs")
+                os.makedirs(errorDir, exist_ok=True)
+
+                htmlFile = f"{errorDir}/checkAttendance_error_{timestamp}.html"
+                screenshotFile = f"{errorDir}/checkAssignments_error_{timestamp}.png"
+
+                try:
+                    print(f"A playwright error occurred: {e}")
+                    if browser and browser.pages:
+                        page = browser.pages[0]
+                        with open(htmlFile, "w", encoding="utf-8") as f:
+                            f.write(page.content())
+                        page.screenshot(path=screenshotFile, full_page=True)
+                        print(f"Saved debug HTML to: {htmlFile}")
+                        print(f"Saved screenshot to: {screenshotFile}")
+                        browser.close()
+                except Exception as inner_e:
+                    print(f"Failed to save debug info: {inner_e}")
+            exit(1)
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        exit(1)

@@ -1,4 +1,4 @@
-from playwright.sync_api import sync_playwright, BrowserContext, Page
+from playwright.sync_api import sync_playwright, BrowserContext, Page, TimeoutError
 from datetime import datetime
 from dotenv import load_dotenv
 from time import sleep
@@ -37,6 +37,9 @@ download_dir = os.getenv("DOWNLOAD_DIR", "")
 enrollment_number = os.getenv("ENROLLMENT_NUMBER", "")
 password = os.getenv("PASSWORD", "")
 data_dir = os.getenv("USER_DATA_DIR", "")
+notification_level = int(os.getenv("NOTIFICATION_LEVEL", "0"))
+notify_submitted = int(os.getenv("NOTIFY_SUBMITTED", "1"))
+instituition = int(os.getenv("INSTITUTION", "6"))
 
 def clean_text(text: str) -> str:
     return " ".join(text.split())
@@ -97,39 +100,28 @@ def check_and_login(page, debug_mode: bool):
                 page.click("#AccountsNavbar > ul")
                 page.click("#ProfileInfo_hlLogoff")
             check_and_login(page, debug_mode)
-    
+        else:
+            print(f"Logged in as {enrollment_number}")
+
     else:
         page.goto("https://cms.bahria.edu.pk/Logins/Student/Login.aspx")
         if "Login.aspx" in page.url:
-            page.fill("#BodyPH_tbEnrollment", enrollment_number)
-            page.fill("#BodyPH_tbPassword", password)
-            page.select_option("#BodyPH_ddlInstituteID", "1")
-            page.click("#pageContent > div.container-fluid > div.row > div > div:nth-child(6)")
-    
-        lms_button = page.wait_for_selector("#sideMenuList > a:nth-child(16)")
-        page.evaluate("el => el.removeAttribute('target')", lms_button)
-        lms_button.click()
+                page.goto("https://cms.bahria.edu.pk/Logins/Student/Login.aspx")
+                page.fill("#BodyPH_tbEnrollment", enrollment_number)
+                page.fill("#BodyPH_tbPassword", password)
+                page.select_option("#BodyPH_ddlInstituteID", "1")
+                page.click(f"#pageContent > div.container-fluid > div.row > div > div:nth-child({instituition})")
 
-        if ("https://lms.bahria.edu.pk/" not in page.url):
-            if ("QualityAssuranceSurveys.aspx" in page.url):
-                print("Please complete the Quality Assurance Survey to proceed.")   
-                print("Do you want to run the script to fill the survey automatically? (y/n): ", end="")
-                choice = input().strip().lower()
-                if choice == 'y':
-                    survey_file_path = os.path.join(os.path.dirname(__file__), "fillSurvey.py")
-                    if os.path.exists(survey_file_path):
-                        clear_terminal()
-                        subprocess.run(["python", survey_file_path])
-                    else:
-                        print("Survey automation script not found.")
-                        exit(1)
+                print(f"Logged in as {enrollment_number}")
+                lms_button = page.wait_for_selector("#sideMenuList > a:nth-child(16)")
+                page.evaluate("el => el.removeAttribute('target')", lms_button)
                 lms_button.click()
-            else:
-                print("Login failed. The LMS is most likely down.")
-                exit(1)
-        persist_cookies(browser, debug_mode)
 
-    print(f"Logged in as {enrollment_number}")
+        elif ("QualityAssuranceSurveys.aspx" in page.url):
+            print("Please complete the Quality Assurance Survey to proceed.")   
+            run_qa_survey(page, debug_mode)
+
+        persist_cookies(browser, debug_mode)
 
 def persist_cookies(browser, debug_mode: bool):
     '''Makes CMS cookies persistent for a year.'''
@@ -141,6 +133,18 @@ def persist_cookies(browser, debug_mode: bool):
             browser.add_cookies([cookie])
             if debug_mode:
                 print(f"Made {cookie['name']} cookie persistent.")
+
+def run_qa_survey(page, debug_mode: bool):
+            print("Do you want to run the script to fill the survey automatically? (y/n): ", end="")
+            choice = input().strip().lower()
+            if choice == 'y':
+                survey_file_path = os.path.join(os.path.dirname(__file__), "fillSurvey.py")
+                if os.path.exists(survey_file_path):
+                    clear_terminal()
+                    subprocess.run(["python", survey_file_path])
+                else:
+                    print("Survey automation script not found.")
+                    exit(1)
 
 def download_assignment_file(page, subject_name: str, assignment_name: str, deadline_date: str, assignment_link: str) -> str:
     '''Handles the downloading of an assignment file, creating directories if necessary, and returning the file pattern used to check for duplicates.'''
@@ -212,19 +216,23 @@ def fetch_assignments(page: Page, check_assignments:bool, debug_mode: bool) -> t
             if len(cells) < 8:
                 continue
             action_col = cells[6].text_content()
-            action_class = cells[7].locator("small").first.get_attribute("class")
             if "Submit" in action_col or "Delete" in action_col: # pyright: ignore[reportOperatorIssue]
+                assignment_number = cells[0].text_content().strip() # pyright: ignore[reportOptionalMemberAccess]
                 assignment_name = cells[1].text_content().strip() # pyright: ignore[reportOptionalMemberAccess]
                 deadline_date = cells[7].locator("small").first.text_content().split('-')[0].strip() # pyright: ignore[reportOptionalMemberAccess]
                 
+                if "Delete" in action_col: # pyright: ignore[reportOperatorIssue]
+                    submitted = True
+                else:
+                    submitted = False
+
                 if not check_assignments:
                     assignment_link = f"https://lms.bahria.edu.pk/Student/{cells[2].locator('a').get_attribute('href')}"
                     pattern = download_assignment_file(page, subject_name, assignment_name, deadline_date, assignment_link) # pyright: ignore[reportArgumentType]
                     patterns.append(pattern)
                 
                 if deadline_date:
-                    deadlines.append((subject_name, deadline_date, action_class))
-
+                    deadlines.append((assignment_number, subject_name, deadline_date, submitted))
 
     return deadlines, patterns
 
@@ -254,40 +262,59 @@ def display_whatsapp_formatted_deadlines(deadlines: list):
 def display_deadlines(deadlines: list, kdeDevice: str, ntfyServer: str):
     today = datetime.today().date()
     parsedDeadlines = []
-    for subject, date_str, action_class in deadlines:
+    
+    for assignment_number, subject, date_str, submitted in deadlines:
         deadline_date = datetime.strptime(date_str, "%d %B %Y").date()
         days_left = (deadline_date - today).days
-        parsedDeadlines.append((subject, deadline_date, days_left, action_class))
+        parsedDeadlines.append((assignment_number, subject, deadline_date, days_left, submitted))
 
     parsedDeadlines.sort(key=lambda x: x[1])
 
-    dueToday, dueNext4, dueAfter4, messages = [], [], [], []
+    dueToday, dueNext4, dueAfter4, notifications = [], [], [], []
 
-    for subject, deadline_date, days_left, action_class in parsedDeadlines:
+    for assignment_number, subject, deadline_date, days_left, submitted in parsedDeadlines:
         display_date = deadline_date.strftime("%#d %B") if os.name == "nt" else deadline_date.strftime("%-d %B")
-        plainMsg = f"{subject} - {display_date} ({days_left} Days Left)"
+        notification_message = f"{assignment_number} {subject} - {display_date} {"Submitted" if submitted else ""}"
+        
         if days_left == 0:
-            colored = f"{Colors.RED_BRIGHT}{subject} - {display_date} (Due Today) {"(Extended)" if "label-warning" in action_class else ""}{Colors.RESET}"
+            colored = f"{Colors.RED_BRIGHT}A{assignment_number} {subject}{" (Submitted)" if submitted else ""}{Colors.RESET}"
             dueToday.append(colored)
-            if kdeDevice or ntfyServer:
-                messages.append(plainMsg)
+            
+            if (kdeDevice or ntfyServer) and notification_level >= 0:
+                notifications.append((notification_message, 5, submitted))
+        
         elif 1 <= days_left <= 4:
             color = [Colors.YELLOW_BRIGHT, Colors.YELLOW_MEDIUM, Colors.YELLOW_DARK][min(days_left - 1, 2)]
-            colored = f"{color}{subject} - {display_date} ({days_left} Days Left) {"(Extended)" if "label-warning" in action_class else ""}{Colors.RESET}"
+            colored = f"{color}A{assignment_number} {subject} - {display_date} ({days_left} Days Left){" (Submitted)" if submitted else ""}{Colors.RESET}"
             dueNext4.append(colored)
+            
+            if (kdeDevice or ntfyServer) and notification_level >= 1:
+                notifications.append((notification_message, 4, submitted))
+
         elif 5 <= days_left <= 7:
             color = Colors.GREEN_BRIGHT
-            colored = f"{color}{subject} - {display_date} ({days_left} Days Left) {"(Extended)" if "label-warning" in action_class else ""}{Colors.RESET}"
+            colored = f"{color}A{assignment_number} {subject} - {display_date} ({days_left} Days Left){" (Submitted)" if submitted else ""}{Colors.RESET}"
             dueAfter4.append(colored)
+            
+            if (kdeDevice or ntfyServer) and notification_level >= 2:
+                notifications.append((notification_message, 3, submitted))
+                
         elif 8 <= days_left <= 14:
             color = Colors.GREEN_MEDIUM
-            colored = f"{color}{subject} - {display_date} ({days_left} Days Left) {"(Extended)" if "label-warning" in action_class else ""}{Colors.RESET}"
+            colored = f"{color}A{assignment_number} {subject} - {display_date} ({days_left} Days Left){" (Submitted)" if submitted else ""}{Colors.RESET}"
             dueAfter4.append(colored)
+            
+            if (kdeDevice or ntfyServer) and notification_level >= 3:
+                notifications.append((notification_message, 3, submitted))
+
         else:
             color = Colors.GREEN_DARK
-            colored = f"{color}{subject} - {display_date} ({days_left} Days Left) {"(Extended)" if "label-warning" in action_class else ""}{Colors.RESET}"
+            colored = f"{color}A{assignment_number} {subject} - {display_date} ({days_left} Days Left){" (Submitted)" if submitted else ""}{Colors.RESET}"
             dueAfter4.append(colored)
-
+            
+            if (kdeDevice or ntfyServer) and notification_level >= 4:
+                notifications.append((notification_message, 2, submitted))
+    
     if dueToday:
         print("=== Due Today ===")
         for line in dueToday:
@@ -306,36 +333,81 @@ def display_deadlines(deadlines: list, kdeDevice: str, ntfyServer: str):
             print(line)
         print()
 
-    if kdeDevice and messages:
-        for msg in messages:
-            subprocess.run(["kdeconnect-cli", "--device", kdeDevice, "--ping-msg", msg])
-    if ntfyServer and messages:
-        for msg in messages:
-            url = f"https://ntfy.sh/{ntfyServer}"
-            headers = {
-            "Title": "Assignments Due Today",
-            "Priority": "5"
-            }
-            requests.post(url, data=msg, headers=headers)
+    if kdeDevice and notifications:
+        for notification, priority, submitted in notifications:
+            if submitted and not notify_submitted:
+                continue
+            else:
+                subprocess.run(["kdeconnect-cli", "--device", kdeDevice, "--ping-msg", notification])
+    
+    if ntfyServer and notifications:
+        for notification, priority, submitted in notifications:
+            if submitted and not notify_submitted:
+                continue
+            else:
+                url = f"https://ntfy.sh/{ntfyServer}"
+                headers = {
+                "Title": "Assignments Due Today",
+                "Priority": str(priority)
+                }
+                requests.post(url, data=notification, headers=headers)
 
 if __name__ == "__main__":
-    if download_dir == "" or enrollment_number == "" or password == "" or data_dir == "":
-        print("Error: One or more required environment variables are not set.")
-        exit(1)
+    try:
+        if download_dir == "" or enrollment_number == "" or password == "" or data_dir == "":
+            print("Error: One or more required environment variables are not set.")
+            exit(1)
 
-    args = parse_args()
+        args = parse_args()
+        browser = None
+
+        try:
+            with sync_playwright() as p:
+                browser = start_playwright(args.debug)
+                page = browser.pages[0]
+                check_and_login(page, args.debug)
+                deadlines, patterns = fetch_assignments(page, args.check_assignments, args.debug)
+                browser.close()
+
+        except Exception as e:
+            error_message = str(e)
+
+            if e == TimeoutError:
+                print("Operation timed out. The LMS or CMS might be down or unresponsive.")
+            
+            elif ("ERR_INTERNET_DISCONNECTED" in error_message):
+                print("No internet connection. Please check your connection and try again.")
+            
+            else:
+                timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                errorDir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "error_logs")
+                os.makedirs(errorDir, exist_ok=True)
+
+                htmlFile = f"{errorDir}/checkAssignments_error_{timestamp}.html"
+                screenshotFile = f"{errorDir}/checkAssignments_error_{timestamp}.png"
+
+                try:
+                    print(f"A playwright error occurred: {e}")
+                    if browser and browser.pages:
+                        page = browser.pages[0]
+                        with open(htmlFile, "w", encoding="utf-8") as f:
+                            f.write(page.content())
+                        page.screenshot(path=screenshotFile, full_page=True)
+                        print(f"Saved debug HTML to: {htmlFile}")
+                        print(f"Saved screenshot to: {screenshotFile}")
+                        browser.close()
+                except Exception as inner_e:
+                    print(f"Failed to save debug info: {inner_e}")
+            exit(1)
+
+        clear_terminal()
+
+        if args.whatsapp:
+            display_whatsapp_formatted_deadlines(deadlines)
+        else:
+            display_deadlines(deadlines, args.kde, args.ntfy)
+        cleanup_old_files(download_dir, patterns, args.debug)
     
-    with sync_playwright() as p:
-        browser = start_playwright(args.debug)
-        page = browser.pages[0]
-        check_and_login(page, args.debug)
-        deadlines, patterns = fetch_assignments(page, args.check_assignments, args.debug)
-        browser.close()
-
-    clear_terminal()
-
-    if args.whatsapp:
-        display_whatsapp_formatted_deadlines(deadlines)
-    else:
-        display_deadlines(deadlines, args.kde, args.ntfy)
-    cleanup_old_files(download_dir, patterns, args.debug)
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        exit(1)

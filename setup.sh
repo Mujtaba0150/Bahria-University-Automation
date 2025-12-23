@@ -52,10 +52,27 @@ read -rp "Enter your ENROLLMENT_NUMBER: " ENROLLMENT_NUMBER
 read -rp "Enter your PASSWORD: " PASSWORD
 read -rp "Enter your USER_DATA_DIR (absolute path for Playwright profile): " USER_DATA_DIR
 read -rp "Enter your DOWNLOAD_DIR (where assignments will be saved): " DOWNLOAD_DIR
-read -rp "Enter DISABLED (0 for No, 1 for Yes): " DISABLED
-read -rp "Enter GENDER (0=Male, 1=Female): " GENDER
-read -rp "Enter AGE group (0=>22, 1=22-29, 2=>29): " AGE
-read -rp "Enter ON_CAMPUS (1=On campus, 0=Off campus): " ON_CAMPUS
+read -rp "Enter INSTITUTION selection (default 6): " INSTITUTION
+INSTITUTION=${INSTITUTION:-6}
+read -rp "Enter DISABLED (0 = No, 1 = Yes): " DISABLED
+DISABLED=${DISABLED:-0}
+read -rp "Enter GENDER (0 = Male, 1 = Female): " GENDER
+GENDER=${GENDER:-0}
+read -rp "Enter AGE group (0 = <22, 1 = 22-29, 2 = >29): " AGE
+AGE=${AGE:-0}
+read -rp "Enter ON_CAMPUS (1 = On campus, 0 = Off campus): " ON_CAMPUS
+ON_CAMPUS=${ON_CAMPUS:-1}
+echo
+echo "NOTIFICATION_LEVEL options:"
+echo "  0 = Due Today"
+echo "  1 = Up to next 4 days"
+echo "  2 = Up to 7 days"
+echo "  3 = Up to 14 days"
+echo "  4 = All notifications"
+read -rp "Enter NOTIFICATION_LEVEL (0-4, default 0): " NOTIFICATION_LEVEL
+NOTIFICATION_LEVEL=${NOTIFICATION_LEVEL:-0}
+read -rp "Enter NOTIFY_SUBMITTED (0 = No, 1 = Yes, default 1): " NOTIFY_SUBMITTED
+NOTIFY_SUBMITTED=${NOTIFY_SUBMITTED:-1}
 
 # Write .env file
 echo "Writing .env file..."
@@ -64,10 +81,13 @@ ENROLLMENT_NUMBER=$ENROLLMENT_NUMBER
 PASSWORD=$PASSWORD
 USER_DATA_DIR=$USER_DATA_DIR
 DOWNLOAD_DIR=$DOWNLOAD_DIR
+INSTITUTION=$INSTITUTION
 DISABLED=$DISABLED
 GENDER=$GENDER
 AGE=$AGE
 ON_CAMPUS=$ON_CAMPUS
+NOTIFICATION_LEVEL=$NOTIFICATION_LEVEL
+NOTIFY_SUBMITTED=$NOTIFY_SUBMITTED
 EOF
 
 echo

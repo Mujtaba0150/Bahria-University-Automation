@@ -5,12 +5,13 @@ A collection of Python automation scripts to streamline common tasks for Bahria 
 ## Features
 
 ### Assignment Tracker (`checkAssignments.py`)
-- Fetches all pending assignments from LMS
-- Differentiates between extended and not extended assignments
+- Fetches all pending and submitted assignments from LMS
+- Displays submitted status for assignments
 - Automatically downloads assignment files
 - Color-coded deadline display based on urgency
 - Removes outdated assignment files automatically
 - Multiple notification options (KDE Connect, Ntfy)
+- Supports WhatsApp-formatted output for group descriptions
 
 ### Attendance Monitor (`checkAttendance.py`)
 - Displays remaining absences for each course
@@ -101,16 +102,25 @@ If you prefer manual installation:
    USER_DATA_DIR=/path/to/browser/profile
    DOWNLOAD_DIR=/path/to/downloads
    
-   # Optional: Demographic information for surveys (fillSurveys.py)
+   # Optional
+   
+   # Institution selection (default: 6)
+   INSTITUTION=6
+   
+   # Demographic information for surveys (fillSurveys.py)
    DISABLED=0          # 0=Non-disabled, 1=Disabled
    GENDER=0            # 0=Male, 1=Female
    AGE=0               # 0=<22, 1=22-29, 2=>29
    ON_CAMPUS=1         # 0=Off Campus, 1=On Campus
+   
+   # Notification configuration (checkAssignments.py)
+   NOTIFICATION_LEVEL=0  # 0-4 (0=all notifications, 4=only overdue)
+   NOTIFY_SUBMITTED=1    # 0=exclude, 1=include submitted assignments
    ```
 
 ### Environment Variables Explanation
 
-#### Required Variables
+#### Required Variables (All Scripts)
 
 | Variable | Required For | Description |
 |----------|-------------|-------------|
@@ -118,17 +128,20 @@ If you prefer manual installation:
 | `PASSWORD` | All scripts | Your CMS password |
 | `USER_DATA_DIR` | All scripts | Path to persistent browser profile (e.g., `/home/username/.config/ms-playwright`, `C:\Users\username\AppData\Local\ms-playwright`) |
 | `DOWNLOAD_DIR` | `checkAssignments.py` | Directory where assignment files will be downloaded |
+| `INSTITUTION` | All scripts | Institution selection on login page (default: 6) |
 
-#### Optional Variables (for fillSurveys.py)
+#### Optional Variables (for fillSurveys.py and checkAssignments.py)
 
-These variables are used for automatic demographic information filling when manually filling surveys:
+These variables are optional and provide additional configuration:
 
-| Variable | Default | Options | Description |
-|----------|---------|---------|-------------|
-| `DISABLED` | 0 | 0=Non-disabled, 1=Disabled | Disability status |
-| `GENDER` | 0 | 0=Male, 1=Female | Gender |
-| `AGE` | 0 | 0=<22, 1=22-29, 2=>29 | Age range |
-| `ON_CAMPUS` | 1 | 0=Off Campus, 1=On Campus | Residence status |
+| Variable | Default | Options | Used By | Description |
+|----------|---------|---------|---------|-------------|
+| `DISABLED` | 0 | 0=Non-disabled, 1=Disabled | `fillSurveys.py` | Disability status for demographic questions |
+| `GENDER` | 0 | 0=Male, 1=Female | `fillSurveys.py` | Gender for demographic questions |
+| `AGE` | 0 | 0=<22, 1=22-29, 2=>29 | `fillSurveys.py` | Age range for demographic questions |
+| `ON_CAMPUS` | 1 | 0=Off Campus, 1=On Campus | `fillSurveys.py` | Residence status for demographic questions |
+| `NOTIFICATION_LEVEL` | 0 | 0-4 | `checkAssignments.py` | Notification verbosity level (0 = Due Today, 1 = Up to next 4 days, 2 = Up to 7 days, 3 = Up to 14 days, 4 = All notifications) |
+| `NOTIFY_SUBMITTED` | 1 | 0/1 | `checkAssignments.py` | Whether to include submitted assignments in notifications |
 
 ## Usage
 
@@ -148,9 +161,9 @@ python checkAssignments.py
 | `-k DEVICE_ID`, `--kde DEVICE_ID` | Send notifications via KDE Connect to specified device |
 | `-N SERVER`, `--ntfy SERVER` | Send notifications via Ntfy.sh server |
 | `-w`, `--whatsapp` | Format the assignment deadlines for the WhatsApp group description |
-| `-n SERVER` | Do not download assignments (useful when internet is slow or on mobile data) |
+| `-n` | Do not download assignments (useful when internet is slow or on mobile data) |
 
-**Note:** The WhatsApp flag requires adding subject abbreviations to the code beforehand and cannot be used with `-k` or `-n`. Feel free to contribute and add more abbreviations for your subjects to the script as required.
+**Note:** The WhatsApp flag formats assignment deadlines using predefined subject abbreviations (see `subjectAbbreviations` dict in the script). Feel free to contribute and add more abbreviations for your subjects as required.
 
 **Examples:**
 ```bash
@@ -168,13 +181,14 @@ python checkAssignments.py --debug --kde your_device_id
 ```
 
 **Color-Coded Output:**
-- 🔴 **Red**: Due today (triggers notifications with `-k` or `-n`)
+- 🔴 **Red**: Due today (triggers notifications with `-k` or `-N`)
 - 🟡 **Yellow(Bright)**: Due within 1 day
 - 🟡 **Yellow(Medium)**: Due within 2 days
 - 🟡 **Yellow(Dark)**: Due within 3-4 days
 - 🟢 **Green (Bright)**: Due within 5-7 days
 - 🟢 **Green (Medium)**: Due within 8-14 days
 - 🟢 **Green (Dark)**: Due after 14 days
+- Submitted assignments are marked with "(Submitted)" suffix
 
 **Screenshot**
 

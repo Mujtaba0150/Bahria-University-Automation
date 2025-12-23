@@ -47,10 +47,27 @@ set /p ENROLLMENT_NUMBER=Enter your ENROLLMENT_NUMBER:
 set /p PASSWORD=Enter your PASSWORD: 
 set /p USER_DATA_DIR=Enter your USER_DATA_DIR (absolute path for Playwright profile): 
 set /p DOWNLOAD_DIR=Enter your DOWNLOAD_DIR (where assignments will be saved): 
-set /p DISABLED=Enter DISABLED (0 for No, 1 for Yes): 
-set /p GENDER=Enter GENDER (0=Male, 1=Female): 
-set /p AGE=Enter AGE group (0=>22, 1=22-29, 2=>29): 
-set /p ON_CAMPUS=Enter ON_CAMPUS (1=On campus, 0=Off campus): 
+set /p INSTITUTION=Enter INSTITUTION selection (default 6): 
+if not defined INSTITUTION set INSTITUTION=6
+set /p DISABLED=Enter DISABLED (0 = No, 1 = Yes): 
+if not defined DISABLED set DISABLED=0
+set /p GENDER=Enter GENDER (0 = Male, 1 = Female): 
+if not defined GENDER set GENDER=0
+set /p AGE=Enter AGE group (0 = <22, 1 = 22-29, 2 = >29): 
+if not defined AGE set AGE=0
+set /p ON_CAMPUS=Enter ON_CAMPUS (1 = On campus, 0 = Off campus): 
+if not defined ON_CAMPUS set ON_CAMPUS=1
+echo.
+echo NOTIFICATION_LEVEL options:
+echo   0 = Due Today
+echo   1 = Up to next 4 days
+echo   2 = Up to 7 days
+echo   3 = Up to 14 days
+echo   4 = All notifications
+set /p NOTIFICATION_LEVEL=Enter NOTIFICATION_LEVEL (0-4, default 0): 
+if not defined NOTIFICATION_LEVEL set NOTIFICATION_LEVEL=0
+set /p NOTIFY_SUBMITTED=Enter NOTIFY_SUBMITTED (0 = No, 1 = Yes, default 1): 
+if not defined NOTIFY_SUBMITTED set NOTIFY_SUBMITTED=1
 
 echo Writing .env file...
 (
@@ -58,10 +75,13 @@ echo Writing .env file...
 	echo PASSWORD=!PASSWORD!
 	echo USER_DATA_DIR=!USER_DATA_DIR!
 	echo DOWNLOAD_DIR=!DOWNLOAD_DIR!
+	echo INSTITUTION=!INSTITUTION!
 	echo DISABLED=!DISABLED!
 	echo GENDER=!GENDER!
 	echo AGE=!AGE!
 	echo ON_CAMPUS=!ON_CAMPUS!
+	echo NOTIFICATION_LEVEL=!NOTIFICATION_LEVEL!
+	echo NOTIFY_SUBMITTED=!NOTIFY_SUBMITTED!
 ) > "%SCRIPT_DIR%.env"
 
 cls
