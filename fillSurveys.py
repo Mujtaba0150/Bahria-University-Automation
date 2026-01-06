@@ -195,7 +195,7 @@ def fill_survey(page, debug_mode: bool, option: int):
             selector = f"#{input_id}"
 
             try:
-                page.wait_for_selector(selector, timeout=2000)
+                page.wait_for_selector(selector, timeout=10000)
                 page.click(selector)
                 if debug_mode:
                     print(f"Clicked: {input_id}")
@@ -275,7 +275,7 @@ def fill_custom_survey(page, currently_filling, debug_mode: bool):
                     )
                     selector = f"#{input_id}"
                     try:
-                        page.wait_for_selector(selector, timeout=2000)
+                        page.wait_for_selector(selector, timeout=10000)
                         page.click(selector)
                         if debug_mode:
                             print(f"Clicked: {input_id}")
@@ -292,24 +292,24 @@ def fill_custom_survey(page, currently_filling, debug_mode: bool):
 def fill_demographic_info(page):
     """Fills demographic questions in course surveys."""
     # Fulltime/Parttime
-    page.wait_for_selector("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_0_1_0", timeout=2000)
+    page.wait_for_selector("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_0_1_0", timeout=10000)
     page.click("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_0_1_0")
     
     # Disabled/Non-Disabled
-    selector = f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_1_{not disabled}_1"
-    page.wait_for_selector(selector, timeout=2000)
+    selector = f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_1_{int(not disabled)}_1"
+    page.wait_for_selector(selector, timeout=10000)
     page.click(selector)
     
     # Male/Female
-    page.wait_for_selector(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_3_{gender}_3", timeout=2000)
+    page.wait_for_selector(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_3_{gender}_3", timeout=10000)
     page.click(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_3_{gender}_3")
     
     # Age:>22/22-29/>29
-    page.wait_for_selector(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_4_{age}_4", timeout=2000)
+    page.wait_for_selector(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_4_{age}_4", timeout=10000)
     page.click(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_4_{age}_4")
     
     # On Campus/Off Campus
-    page.wait_for_selector(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_5_{on_campus}_5", timeout=2000)
+    page.wait_for_selector(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_5_{on_campus}_5", timeout=10000)
     page.click(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_5_{on_campus}_5")
 
 if __name__ == "__main__":
