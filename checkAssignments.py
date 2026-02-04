@@ -271,13 +271,14 @@ def display_deadlines(deadlines: list, kdeDevice: str, ntfyServer: str):
     parsedDeadlines.sort(key=lambda x: x[1])
 
     dueToday, dueNext4, dueAfter4, notifications = [], [], [], []
+    submitted_color = Colors.GREEN_BRIGHT
 
     for assignment_number, subject, deadline_date, days_left, submitted in parsedDeadlines:
         display_date = deadline_date.strftime("%#d %B") if os.name == "nt" else deadline_date.strftime("%-d %B")
         notification_message = f"{assignment_number} {subject} - {display_date} {"Submitted" if submitted else ""}"
         
         if days_left == 0:
-            colored = f"{Colors.RED_BRIGHT}A{assignment_number} {subject}{" (Submitted)" if submitted else ""}{Colors.RESET}"
+            colored = f"{Colors.RED_BRIGHT}A{assignment_number} {subject}{Colors.RESET}{submitted_color}{" (Submitted)" if submitted else ""}{Colors.RESET}"
             dueToday.append(colored)
             
             if (kdeDevice or ntfyServer) and notification_level >= 0:
@@ -285,7 +286,7 @@ def display_deadlines(deadlines: list, kdeDevice: str, ntfyServer: str):
         
         elif 1 <= days_left <= 4:
             color = [Colors.YELLOW_BRIGHT, Colors.YELLOW_MEDIUM, Colors.YELLOW_DARK][min(days_left - 1, 2)]
-            colored = f"{color}A{assignment_number} {subject} - {display_date} ({days_left} Days Left){" (Submitted)" if submitted else ""}{Colors.RESET}"
+            colored = f"{color}A{assignment_number} {subject} - {display_date} ({days_left} Days Left){submitted_color}{" (Submitted)" if submitted else ""}{Colors.RESET}"
             dueNext4.append(colored)
             
             if (kdeDevice or ntfyServer) and notification_level >= 1:
@@ -293,7 +294,7 @@ def display_deadlines(deadlines: list, kdeDevice: str, ntfyServer: str):
 
         elif 5 <= days_left <= 7:
             color = Colors.GREEN_BRIGHT
-            colored = f"{color}A{assignment_number} {subject} - {display_date} ({days_left} Days Left){" (Submitted)" if submitted else ""}{Colors.RESET}"
+            colored = f"{color}A{assignment_number} {subject} - {display_date} ({days_left} Days Left){submitted_color}{" (Submitted)" if submitted else ""}{Colors.RESET}"
             dueAfter4.append(colored)
             
             if (kdeDevice or ntfyServer) and notification_level >= 2:
@@ -301,7 +302,7 @@ def display_deadlines(deadlines: list, kdeDevice: str, ntfyServer: str):
                 
         elif 8 <= days_left <= 14:
             color = Colors.GREEN_MEDIUM
-            colored = f"{color}A{assignment_number} {subject} - {display_date} ({days_left} Days Left){" (Submitted)" if submitted else ""}{Colors.RESET}"
+            colored = f"{color}A{assignment_number} {subject} - {display_date} ({days_left} Days Left){submitted_color}{" (Submitted)" if submitted else ""}{Colors.RESET}"
             dueAfter4.append(colored)
             
             if (kdeDevice or ntfyServer) and notification_level >= 3:
@@ -309,7 +310,7 @@ def display_deadlines(deadlines: list, kdeDevice: str, ntfyServer: str):
 
         else:
             color = Colors.GREEN_DARK
-            colored = f"{color}A{assignment_number} {subject} - {display_date} ({days_left} Days Left){" (Submitted)" if submitted else ""}{Colors.RESET}"
+            colored = f"{color}A{assignment_number} {subject} - {display_date} ({days_left} Days Left){submitted_color}{" (Submitted)" if submitted else ""}{Colors.RESET}"
             dueAfter4.append(colored)
             
             if (kdeDevice or ntfyServer) and notification_level >= 4:
