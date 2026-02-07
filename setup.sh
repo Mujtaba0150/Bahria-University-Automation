@@ -47,6 +47,9 @@ echo "Upgrading pip and installing requirements..."
 "$PYTHON_CMD" -m pip install --upgrade pip
 "$PYTHON_CMD" -m pip install -r "$SCRIPT_DIR/requirements.txt"
 
+playwright install-deps
+playwright install chromium
+
 # Collect environment variables from user
 read -rp "Enter your ENROLLMENT_NUMBER: " ENROLLMENT_NUMBER
 read -rp "Enter your PASSWORD: " PASSWORD
