@@ -20,7 +20,7 @@ class Colors:
     RESET = "\033[0m"
 
 
-subjectAbbreviations = {
+subject_abbreviations = {
     "Computer Architecture Lab": "CA Lab",
     "Operating Systems Lab": "OS Lab",
     "Design and Analysis of Algorithms Lab": "DAA Lab",
@@ -45,10 +45,8 @@ def clean_text(text: str) -> str:
     return " ".join(text.split())
 
 def clear_terminal():
-    if platform.system() == "Windows":
-        os.system("cls")
-    else:
-        os.system("clear")
+    command = "cls" if platform.system() == "Windows" else "clear"
+    subprocess.run(command, shell=True)
 
 def parse_args():
     '''Parses command line arguments.'''
@@ -238,28 +236,28 @@ def fetch_assignments(page: Page, check_assignments:bool, debug_mode: bool) -> t
 
 
 def display_whatsapp_formatted_deadlines(deadlines: list):
-    formattedDeadlines = []
+    formatted_deadlines = []
     for subject, date, _ in deadlines:
-        shortSubject = subjectAbbreviations.get(subject, subject)
+        short_subject = subject_abbreviations.get(subject, subject)
         try:
-            parsedDate = datetime.strptime(date, "%d %B %Y")
-            day = parsedDate.day
+            parsed_date = datetime.strptime(date, "%d %B %Y")
+            day = parsed_date.day
             if 11 <= day <= 13:
                 suffix = "th"
             else:
                 suffix = {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
-            formattedDate = f"{day}{suffix} {parsedDate.strftime('%b')}"
-            formattedDeadlines.append((shortSubject, formattedDate, parsedDate))
+            formatted_date = f"{day}{suffix} {parsed_date.strftime('%b')}"
+            formatted_deadlines.append((short_subject, formatted_date, parsed_date))
         except ValueError:
-            formattedDeadlines.append((shortSubject, date, None))
+            formatted_deadlines.append((short_subject, date, None))
 
-    formattedDeadlines.sort(key=lambda x: (x[2] is None, x[2]))
+    formatted_deadlines.sort(key=lambda x: (x[2] is None, x[2]))
 
-    for subject, formattedDate, _ in formattedDeadlines:
-        print(f"{subject} - {formattedDate}")
+    for subject, formatted_date, _ in formatted_deadlines:
+        print(f"{subject} - {formatted_date}")
 
 
-def display_deadlines(deadlines: list, kdeDevice: str, ntfyServer: str):
+def display_deadlines(deadlines: list, KDE_device: str, ntfy_server: str):
     today = datetime.today().date()
     parsed_deadlines = []
 
@@ -270,14 +268,14 @@ def display_deadlines(deadlines: list, kdeDevice: str, ntfyServer: str):
 
     parsed_deadlines.sort(key=lambda x: x[1])
 
-    dueToday, dueNext4, dueAfter4 = [], [], []
+    due_today, due_next_4, due_after_4 = [], [], []
 
     rules = [
-        (0, 0, Colors.RED_BRIGHT, dueToday, 5),
-        (1, 4, [Colors.YELLOW_BRIGHT, Colors.YELLOW_MEDIUM, Colors.YELLOW_DARK], dueNext4, 4),
-        (5, 7, Colors.GREEN_BRIGHT, dueAfter4, 3),
-        (8, 14, Colors.GREEN_MEDIUM, dueAfter4, 3),
-        (15, float("inf"), Colors.GREEN_DARK, dueAfter4, 2),
+        (0, 0, Colors.RED_BRIGHT, due_today, 5),
+        (1, 4, [Colors.YELLOW_BRIGHT, Colors.YELLOW_MEDIUM, Colors.YELLOW_DARK], due_next_4, 4),
+        (5, 7, Colors.GREEN_BRIGHT, due_after_4, 3),
+        (8, 14, Colors.GREEN_MEDIUM, due_after_4, 3),
+        (15, float("inf"), Colors.GREEN_DARK, due_after_4, 2),
     ]
 
     level_to_max_days = {0: 0, 1: 4, 2: 7, 3: 14, 4: float("inf")}
@@ -289,7 +287,7 @@ def display_deadlines(deadlines: list, kdeDevice: str, ntfyServer: str):
 
     for assignment_number, subject, deadline_date, days_left, submitted in parsed_deadlines:
         display_date = deadline_date.strftime("%#d %B") if os.name == "nt" else deadline_date.strftime("%-d %B")
-        notification_message = f"{assignment_number} {subject} - {display_date} {'Submitted' if submitted else ''}"
+        notification_message = f"{assignment_number}. {subject} - {display_date} {'Submitted' if submitted else ''}"
 
         for start, end, color, target, priority in rules:
             if start <= days_left <= end:
@@ -304,16 +302,16 @@ def display_deadlines(deadlines: list, kdeDevice: str, ntfyServer: str):
                 )
                 target.append(colored)
 
-                if (kdeDevice or ntfyServer) and days_left <= max_days_for_notification:
+                if (KDE_device or ntfy_server) and days_left <= max_days_for_notification:
                     if submitted and not notify_submitted:
                         break
                     notifications.append((notification_message, priority, submitted))
                 break
 
     sections = [
-        ("=== Due Today ===", dueToday),
-        ("=== Due Within the Next 4 Days ===", dueNext4),
-        ("=== Due After 4 Days ===", dueAfter4),
+        ("=== Due Today ===", due_today),
+        ("=== Due Within the Next 4 Days ===", due_next_4),
+        ("=== Due After 4 Days ===", due_after_4),
     ]
 
     for title, items in sections:
@@ -324,12 +322,12 @@ def display_deadlines(deadlines: list, kdeDevice: str, ntfyServer: str):
             print()
 
     for notification, priority, submitted in notifications:
-        if kdeDevice and (not submitted or notify_submitted):
-            subprocess.run(["kdeconnect-cli", "--device", kdeDevice, "--ping-msg", notification])
+        if KDE_device and (not submitted or notify_submitted):
+            subprocess.run(["kdeconnect-cli", "--device", KDE_device, "--ping-msg", notification])
 
-        if ntfyServer and (not submitted or notify_submitted):
+        if ntfy_server and (not submitted or notify_submitted):
             requests.post(
-                f"https://ntfy.sh/{ntfyServer}",
+                f"https://ntfy.sh/{ntfy_server}",
                 data=notification,
                 headers={"Title": "Assignments Due Today", "Priority": str(priority)}
             )
@@ -363,21 +361,21 @@ if __name__ == "__main__":
             
             else:
                 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-                errorDir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "error_logs")
-                os.makedirs(errorDir, exist_ok=True)
+                error_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "error_logs")
+                os.makedirs(error_dir, exist_ok=True)
 
-                htmlFile = f"{errorDir}/checkAssignments_error_{timestamp}.html"
-                screenshotFile = f"{errorDir}/checkAssignments_error_{timestamp}.png"
+                html_file = f"{error_dir}/checkAssignments_error_{timestamp}.html"
+                screenshot_file = f"{error_dir}/checkAssignments_error_{timestamp}.png"
 
                 try:
                     print(f"A playwright error occurred: {e}")
                     if browser and browser.pages:
                         page = browser.pages[0]
-                        with open(htmlFile, "w", encoding="utf-8") as f:
+                        with open(html_file, "w", encoding="utf-8") as f:
                             f.write(page.content())
-                        page.screenshot(path=screenshotFile, full_page=True)
-                        print(f"Saved debug HTML to: {htmlFile}")
-                        print(f"Saved screenshot to: {screenshotFile}")
+                        page.screenshot(path=screenshot_file, full_page=True)
+                        print(f"Saved debug HTML to: {html_file}")
+                        print(f"Saved screenshot to: {screenshot_file}")
                         browser.close()
                 except Exception as inner_e:
                     print(f"Failed to save debug info: {inner_e}")

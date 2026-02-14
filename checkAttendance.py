@@ -138,21 +138,21 @@ if __name__ == "__main__":
 
             else:
                 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-                errorDir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "error_logs")
-                os.makedirs(errorDir, exist_ok=True)
+                error_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "error_logs")
+                os.makedirs(error_dir, exist_ok=True)
 
-                htmlFile = f"{errorDir}/checkAttendance_error_{timestamp}.html"
-                screenshotFile = f"{errorDir}/checkAssignments_error_{timestamp}.png"
+                html_file = f"{error_dir}/checkAttendance_error_{timestamp}.html"
+                screenshot_file = f"{error_dir}/checkAttendance_error_{timestamp}.png"
 
                 try:
                     print(f"A playwright error occurred: {e}")
                     if browser and browser.pages:
                         page = browser.pages[0]
-                        with open(htmlFile, "w", encoding="utf-8") as f:
+                        with open(html_file, "w", encoding="utf-8") as f:
                             f.write(page.content())
-                        page.screenshot(path=screenshotFile, full_page=True)
-                        print(f"Saved debug HTML to: {htmlFile}")
-                        print(f"Saved screenshot to: {screenshotFile}")
+                        page.screenshot(path=screenshot_file, full_page=True)
+                        print(f"Saved debug HTML to: {html_file}")
+                        print(f"Saved screenshot to: {screenshot_file}")
                         browser.close()
                 except Exception as inner_e:
                     print(f"Failed to save debug info: {inner_e}")
