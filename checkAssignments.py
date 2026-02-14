@@ -261,18 +261,16 @@ def display_whatsapp_formatted_deadlines(deadlines: list):
 
 def display_deadlines(deadlines: list, kdeDevice: str, ntfyServer: str):
     today = datetime.today().date()
-    parsedDeadlines = []
+    parsed_deadlines = []
 
     for assignment_number, subject, date_str, submitted in deadlines:
-        deadlineDate = datetime.strptime(date_str, "%d %B %Y").date()
-        daysLeft = (deadlineDate - today).days
-        parsedDeadlines.append((assignment_number, subject, deadlineDate, daysLeft, submitted))
+        deadline_date = datetime.strptime(date_str, "%d %B %Y").date()
+        days_left = (deadline_date - today).days
+        parsed_deadlines.append((assignment_number, subject, deadline_date, days_left, submitted))
 
-    parsedDeadlines.sort(key=lambda x: x[1])
+    parsed_deadlines.sort(key=lambda x: x[1])
 
-    dueToday, dueNext4, dueAfter4, notifications = [], [], [], []
-    submittedColor = Colors.GREEN_BRIGHT
-    showSubmitted = lambda s: f"{submittedColor} (Submitted){Colors.RESET}" if s else ""
+    dueToday, dueNext4, dueAfter4 = [], [], []
 
     rules = [
         (0, 0, Colors.RED_BRIGHT, dueToday, 5),
@@ -282,25 +280,34 @@ def display_deadlines(deadlines: list, kdeDevice: str, ntfyServer: str):
         (15, float("inf"), Colors.GREEN_DARK, dueAfter4, 2),
     ]
 
-    for assignmentNumber, subject, deadlineDate, daysLeft, submitted in parsedDeadlines:
-        displayDate = deadlineDate.strftime("%#d %B") if os.name == "nt" else deadlineDate.strftime("%-d %B")
-        notificationMessage = f"{assignmentNumber} {subject} - {displayDate} {'Submitted' if submitted else ''}"
+    level_to_max_days = {0: 0, 1: 4, 2: 7, 3: 14, 4: float("inf")}
+    max_days_for_notification = level_to_max_days.get(notification_level, 0)
+
+    notifications = []
+    submitted_color = Colors.GREEN_BRIGHT
+    show_submitted = lambda s: f"{submitted_color} (Submitted){Colors.RESET}" if s else ""
+
+    for assignment_number, subject, deadline_date, days_left, submitted in parsed_deadlines:
+        display_date = deadline_date.strftime("%#d %B") if os.name == "nt" else deadline_date.strftime("%-d %B")
+        notification_message = f"{assignment_number} {subject} - {display_date} {'Submitted' if submitted else ''}"
 
         for start, end, color, target, priority in rules:
-            if start <= daysLeft <= end:
+            if start <= days_left <= end:
                 if isinstance(color, list):
-                    color = color[min(daysLeft - 1, len(color) - 1)]
+                    color = color[min(days_left - start, len(color) - 1)]
 
-                suffix = f" ({daysLeft} Days Left)" if daysLeft > 0 else ""
+                suffix = f" ({days_left} Days Left)" if days_left > 0 else ""
                 colored = (
-                    f"{color}A{assignmentNumber} {subject}"
-                    f"{' - ' + displayDate if daysLeft > 0 else ''}"
-                    f"{suffix}{showSubmitted(submitted)}{Colors.RESET}"
+                    f"{color}A{assignment_number} {subject}"
+                    f"{' - ' + display_date if days_left > 0 else ''}"
+                    f"{suffix}{show_submitted(submitted)}{Colors.RESET}"
                 )
                 target.append(colored)
 
-                if (kdeDevice or ntfyServer) and notification_level >= rules.index((start, end, color if not isinstance(color, list) else rules[1][2], target, priority)):
-                    notifications.append((notificationMessage, priority, submitted))
+                if (kdeDevice or ntfyServer) and days_left <= max_days_for_notification:
+                    if submitted and not notify_submitted:
+                        break
+                    notifications.append((notification_message, priority, submitted))
                 break
 
     sections = [
@@ -317,18 +324,16 @@ def display_deadlines(deadlines: list, kdeDevice: str, ntfyServer: str):
             print()
 
     for notification, priority, submitted in notifications:
-        if submitted and not notify_submitted:
-            continue
-
-        if kdeDevice:
+        if kdeDevice and (not submitted or notify_submitted):
             subprocess.run(["kdeconnect-cli", "--device", kdeDevice, "--ping-msg", notification])
 
-        if ntfyServer:
+        if ntfyServer and (not submitted or notify_submitted):
             requests.post(
                 f"https://ntfy.sh/{ntfyServer}",
                 data=notification,
                 headers={"Title": "Assignments Due Today", "Priority": str(priority)}
             )
+
 
 if __name__ == "__main__":
     try:
