@@ -72,8 +72,10 @@ rem Collect environment variables
 rem ==================================================
 set /p ENROLLMENT_NUMBER=Enter your ENROLLMENT_NUMBER: 
 set /p PASSWORD=Enter your PASSWORD: 
-set /p USER_DATA_DIR=Enter USER_DATA_DIR (absolute path): 
-set /p DOWNLOAD_DIR=Enter DOWNLOAD_DIR: 
+set /p USER_DATA_DIR=Enter USER_DATA_DIR (default C:\Users\%USERNAME%\.AppData\Local\ms-playwright): 
+if not defined USER_DATA_DIR set "USER_DATA_DIR=C:\Users\%USERNAME%\.AppData\Local\ms-playwright"
+set /p DOWNLOAD_DIR=Enter DOWNLOAD_DIR (default C:\Users\%USERNAME%\Documents\Assignments): 
+if not defined DOWNLOAD_DIR set "DOWNLOAD_DIR=C:\Users\%USERNAME%\Documents\Assignments"
 
 set /p INSTITUTION=Enter INSTITUTION (default 6): 
 if not defined INSTITUTION set INSTITUTION=6
@@ -162,8 +164,20 @@ if "!INSTALL_SCOPE!"=="2" goto PATH_MACHINE
 goto PATH_USER
 
 :PATH_USER
-echo Adding to USER PATH...
-setx PATH "%PATH%;!SCRIPT_DIR!"
+echo Adding to USER PATH using PowerShell...
+
+set "PSFILE=!SCRIPT_DIR!\update_user_path.ps1"
+if exist "!PSFILE!" del "!PSFILE!" >nul 2>&1
+
+>> "!PSFILE!" echo $dir = '!SCRIPT_DIR!'
+>> "!PSFILE!" echo $path = [Environment]::GetEnvironmentVariable('Path','User')
+>> "!PSFILE!" echo if ($path -notlike "*$dir*") {
+>> "!PSFILE!" echo   [Environment]::SetEnvironmentVariable('Path', "$path;$dir", 'User')
+>> "!PSFILE!" echo }
+>> "!PSFILE!" echo Remove-Item -LiteralPath "$PSScriptRoot\update_user_path.ps1" -Force
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "!PSFILE!"
+
 echo User PATH updated. Restart terminal.
 goto DONE
 

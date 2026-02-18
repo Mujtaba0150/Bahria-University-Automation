@@ -171,9 +171,14 @@ def cleanup_old_files(download_dir: str, patterns: list, debug_mode: bool):
     '''Delete all files and folders in download_dir that are not matched by any pattern.'''
     all_files = glob.glob(f"{download_dir}/**/*", recursive=True)
     keep_files = set()
+    
     for pattern in patterns:
         keep_files.update(glob.glob(pattern))
-
+        
+    if platform.system() == "Windows":
+        download_dir = download_dir.replace("/", "\\")
+        keep_files = {f.replace("/", "\\") for f in keep_files}
+    
     for path in all_files:
         if os.path.isdir(path):
             continue
