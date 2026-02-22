@@ -19,7 +19,6 @@ class Colors:
     GREEN_DARK = "\x1b[38;2;9;92;9m"
     RESET = "\033[0m"
 
-
 subject_abbreviations = {
     "Computer Architecture Lab": "CA Lab",
     "Operating Systems Lab": "OS Lab",
@@ -40,6 +39,7 @@ data_dir = os.getenv("USER_DATA_DIR", "")
 notification_level = int(os.getenv("NOTIFICATION_LEVEL", "0"))
 notify_submitted = int(os.getenv("NOTIFY_SUBMITTED", "1"))
 instituition = int(os.getenv("INSTITUTION", "6"))
+check_updates = int(os.getenv("CHECK_UPDATES", "1"))
 
 def clean_text(text: str) -> str:
     return " ".join(text.split())
@@ -47,6 +47,23 @@ def clean_text(text: str) -> str:
 def clear_terminal():
     command = "cls" if platform.system() == "Windows" else "clear"
     subprocess.run(command, shell=True)
+
+def check_for_updates():
+    with open(os.path.join(os.path.dirname(__file__), "version.txt"), "r") as f:
+        local_version = f.readline().strip()
+        f.close()
+
+    try:
+        url = "https://raw.githubusercontent.com/Mujtaba0150/Bahria-University-Automation/master/version.txt"
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        remote_version = response.text.strip()
+
+        if local_version != remote_version:
+            print(f"A new version ({remote_version}) is available! You are using version {local_version}. Please update to the latest version.")
+            print("Visit https://github.com/Mujtaba0150/Bahria-University-Automation to download the latest version or use git to update.")
+    except requests.RequestException:
+        print("Could not check for updates. Please check your internet connection.")
 
 def parse_args():
     '''Parses command line arguments.'''
@@ -239,7 +256,6 @@ def fetch_assignments(page: Page, check_assignments:bool, debug_mode: bool) -> t
 
     return deadlines, patterns
 
-
 def display_whatsapp_formatted_deadlines(deadlines: list):
     formatted_deadlines = []
     for subject, date, _ in deadlines:
@@ -260,7 +276,6 @@ def display_whatsapp_formatted_deadlines(deadlines: list):
 
     for subject, formatted_date, _ in formatted_deadlines:
         print(f"{subject} - {formatted_date}")
-
 
 def display_deadlines(deadlines: list, KDE_device: str, ntfy_server: str):
     today = datetime.today().date()
@@ -337,7 +352,6 @@ def display_deadlines(deadlines: list, KDE_device: str, ntfy_server: str):
                 headers={"Title": "Assignments Due Today", "Priority": str(priority)}
             )
 
-
 if __name__ == "__main__":
     try:
         if download_dir == "" or enrollment_number == "" or password == "" or data_dir == "":
@@ -383,6 +397,7 @@ if __name__ == "__main__":
                         print(f"Saved debug HTML to: {html_file}")
                         print(f"Saved screenshot to: {screenshot_file}")
                         browser.close()
+                
                 except Exception as inner_e:
                     print(f"Failed to save debug info: {inner_e}")
             exit(1)
@@ -394,7 +409,9 @@ if __name__ == "__main__":
         else:
             display_deadlines(deadlines, args.kde, args.ntfy)
         cleanup_old_files(download_dir, patterns, args.debug)
-    
+
+        if check_updates:
+            check_for_updates()
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
         exit(1)

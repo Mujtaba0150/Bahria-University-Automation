@@ -1,6 +1,7 @@
 from playwright.sync_api import sync_playwright
 from datetime import datetime
 from dotenv import load_dotenv
+import requests
 import os
 import platform
 import argparse
@@ -15,13 +16,30 @@ gender = int(os.getenv("GENDER", 0))
 age = int(os.getenv("AGE", 0))
 on_campus = int(os.getenv("ON_CAMPUS", 1))
 instituition = int(os.getenv("INSTITUTION", "6"))
-
+check_updates = int(os.getenv("CHECK_UPDATES", "1"))
 
 def clear_terminal():
     if platform.system() == "Windows":
         os.system("cls")
     else:
         os.system("clear")
+
+def check_for_updates():
+    with open(os.path.join(os.path.dirname(__file__), "version.txt"), "r") as f:
+        local_version = f.readline().strip()
+        f.close()
+
+    try:
+        url = "https://raw.githubusercontent.com/Mujtaba0150/Bahria-University-Automation/master/version.txt"
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        remote_version = response.text.strip()
+
+        if local_version != remote_version:
+            print(f"A new version ({remote_version}) is available! You are using version {local_version}. Please update to the latest version.")
+            print("Visit https://github.com/Mujtaba0150/Bahria-University-Automation to download the latest version or use git to update.")
+    except requests.RequestException:
+        print("Could not check for updates. Please check your internet connection.")
 
 def start_playwright(debug_mode: bool):
     """Launches persistent browser and runs survey automation."""
@@ -364,6 +382,9 @@ if __name__ == "__main__":
                     except Exception as inner_e:
                         print(f"Failed to save debug info: {inner_e}")
                 exit(1)
+        
+        if check_updates:
+            check_for_updates()
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
         exit(1)

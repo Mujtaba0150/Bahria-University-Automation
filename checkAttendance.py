@@ -1,6 +1,7 @@
 from playwright.sync_api import sync_playwright, BrowserContext, Page
 from datetime import datetime
 import argparse
+import requests
 import os
 from dotenv import load_dotenv
 from time import sleep
@@ -10,9 +11,27 @@ enrollment_number = os.getenv("ENROLLMENT_NUMBER", "")
 password = os.getenv("PASSWORD", "")
 data_dir = os.getenv("USER_DATA_DIR", "")
 instituition = int(os.getenv("INSTITUTION", "6"))
+check_updates = int(os.getenv("CHECK_UPDATES", "1"))
 
 def format_number(n):
     return f"{n:.2f}".rstrip('0').rstrip('.')
+
+def check_for_updates():
+    with open(os.path.join(os.path.dirname(__file__), "version.txt"), "r") as f:
+        local_version = f.readline().strip()
+        f.close()
+
+    try:
+        url = "https://raw.githubusercontent.com/Mujtaba0150/Bahria-University-Automation/master/version.txt"
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        remote_version = response.text.strip()
+
+        if local_version != remote_version:
+            print(f"A new version ({remote_version}) is available! You are using version {local_version}. Please update to the latest version.")
+            print("Visit https://github.com/Mujtaba0150/Bahria-University-Automation to download the latest version or use git to update.")
+    except requests.RequestException:
+        print("Could not check for updates. Please check your internet connection.")
 
 def check_and_login_to_CMS(browser, page, debug_mode: bool):
     """Handles login and cookie persistence."""
@@ -36,8 +55,6 @@ def check_and_login_to_CMS(browser, page, debug_mode: bool):
             page.click("#AccountsNavbar > ul")
             page.click("#ProfileInfo_hlLogoff")
             check_and_login_to_CMS(page, browser, debug_mode)
-
-
 
 def persist_cookies(browser, debug_mode: bool):
     """Makes CMS cookies persistent for a year."""
@@ -104,7 +121,6 @@ def scrape_attendance(page: Page, debug_mode: bool):
         else:
             print(f"\033[1;97m{subject}\033[0m: {format_number((absences_remaining / int(credits) * 2))}/{int(max_absences / int(credits) * 2)}")
 
-
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--debug", "-d", action="store_true", help="Enable debug mode")
@@ -157,6 +173,9 @@ if __name__ == "__main__":
                 except Exception as inner_e:
                     print(f"Failed to save debug info: {inner_e}")
             exit(1)
+        
+        if check_updates:
+            check_for_updates()
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
         exit(1)

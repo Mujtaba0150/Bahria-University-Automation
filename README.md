@@ -116,11 +116,13 @@ If you prefer manual installation:
    # Notification configuration (checkAssignments.py)
    NOTIFICATION_LEVEL=0  # 0-4 (0=all notifications, 4=only overdue)
    NOTIFY_SUBMITTED=1    # 0=exclude, 1=include submitted assignments
+
+   CHECK_UPDATES=1 # 0=Check 1=Don't Check
    ```
 
 ### Environment Variables Explanation
 
-#### Required Variables (All Scripts)
+#### Required Variables
 
 | Variable | Required For | Description |
 |----------|-------------|-------------|
@@ -128,9 +130,8 @@ If you prefer manual installation:
 | `PASSWORD` | All scripts | Your CMS password |
 | `USER_DATA_DIR` | All scripts | Path to persistent browser profile (e.g., `/home/username/.config/ms-playwright`, `C:\Users\username\AppData\Local\ms-playwright`) |
 | `DOWNLOAD_DIR` | `checkAssignments.py` | Directory where assignment files will be downloaded |
-| `INSTITUTION` | All scripts | Institution selection on login page (default: 6) |
 
-#### Optional Variables (for fillSurveys.py and checkAssignments.py)
+#### Optional Variables
 
 These variables are optional and provide additional configuration:
 
@@ -142,6 +143,8 @@ These variables are optional and provide additional configuration:
 | `ON_CAMPUS` | 1 | 0=Off Campus, 1=On Campus | `fillSurveys.py` | Residence status for demographic questions |
 | `NOTIFICATION_LEVEL` | 0 | 0-4 | `checkAssignments.py` | Notification verbosity level (0 = Due Today, 1 = Up to next 4 days, 2 = Up to 7 days, 3 = Up to 14 days, 4 = All notifications) |
 | `NOTIFY_SUBMITTED` | 1 | 0/1 | `checkAssignments.py` | Whether to include submitted assignments in notifications |
+| `CHECK_UPDATES` | 1 | 0/1 | All scripts | Whether to check for new updates |
+| `INSTITUTION` | 6 (Islamabad E-8 Campus) | 1-16 | All scripts | Institution selection on login page |
 
 ## Usage
 
