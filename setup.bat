@@ -62,10 +62,9 @@ rem ==================================================
 echo Upgrading pip and installing requirements...
 "!PYTHON_CMD!" -m pip install --upgrade pip
 "!PYTHON_CMD!" -m pip install -r "!SCRIPT_DIR!\requirements.txt"
+python -m playwright install chromium
 
 cls
-
-playwright install chromium
 
 rem ==================================================
 rem Collect environment variables

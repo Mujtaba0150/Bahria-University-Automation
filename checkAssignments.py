@@ -271,7 +271,7 @@ def display_deadlines(deadlines: list, KDE_device: str, ntfy_server: str):
         days_left = (deadline_date - today).days
         parsed_deadlines.append((assignment_number, subject, deadline_date, days_left, submitted))
 
-    parsed_deadlines.sort(key=lambda x: x[1])
+    parsed_deadlines.sort(key=lambda x: x[3])
 
     due_today, due_next_4, due_after_4 = [], [], []
 
