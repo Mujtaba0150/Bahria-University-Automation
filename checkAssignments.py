@@ -94,7 +94,7 @@ def check_and_login(page, debug_mode: bool):
 
             page.click("body > div > header > nav > div > ul > li.dropdown.user.user-menu")
             page.click("body > div > header > nav > div > ul > li.dropdown.user.user-menu.open > ul > li.user-footer > div.pull-right")
-            if "Login.aspx" not in page.url:
+            if "Dashboard.aspx" in page.url:
                 page.click("#AccountsNavbar > ul")
                 page.click("#ProfileInfo_hlLogoff")
             check_and_login(page, debug_mode)
@@ -351,6 +351,7 @@ if __name__ == "__main__":
             with sync_playwright() as p:
                 browser = start_playwright(args.debug)
                 page = browser.pages[0]
+                # sleep(2000000)
                 check_and_login(page, args.debug)
                 deadlines, patterns = fetch_assignments(page, args.check_assignments, args.debug)
                 browser.close()
