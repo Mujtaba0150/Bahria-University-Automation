@@ -117,9 +117,15 @@ def scrape_attendance(page: Page, debug_mode: bool):
         absences_remaining = max_absences - float(absences)
 
         if subject.split()[-1] == "Lab":
-            print(f"\033[1;97m{subject}\033[0m: {format_number(absences_remaining / (int(credits) * 3))}/{int(max_absences / (int(credits) * 3))}")
+            if int(format_number(absences_remaining / (int(credits) * 3))) <= 0:
+                print(f"\033[1;97m{subject}\033[0m: \033[1;91m{format_number(absences_remaining / (int(credits) * 3))}/{int(max_absences / (int(credits) * 3))}\033[0m")
+            else:
+                print(f"\033[1;97m{subject}\033[0m: {format_number(absences_remaining / (int(credits) * 3))}/{int(max_absences / (int(credits) * 3))}")
         else:
-            print(f"\033[1;97m{subject}\033[0m: {format_number((absences_remaining / int(credits) * 2))}/{int(max_absences / int(credits) * 2)}")
+            if int(format_number(absences_remaining / int(credits) * 2)) <= 0:
+                print(f"\033[1;97m{subject}\033[0m: \033[1;91m{format_number((absences_remaining / int(credits) * 2))}/{int(max_absences / int(credits) * 2)}\033[0m")
+            else:
+                print(f"\033[1;97m{subject}\033[0m: {format_number((absences_remaining / int(credits) * 2))}/{int(max_absences / int(credits) * 2)}")
 
 def parse_args():
     parser = argparse.ArgumentParser()
