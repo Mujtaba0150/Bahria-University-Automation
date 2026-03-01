@@ -152,6 +152,14 @@ if __name__ == "__main__":
         if enrollment_number == "" or password == "" or notification_level < 0 or notification_level > 4 or ntfy_server == "":
             print("Error: One or more required environment variables are not set or are incorrectly set.")
             send_notification("Error: One or more required environment variables are not set or are incorrectly set.", 1)
+            if enrollment_number == "":
+                print("ENROLLMENT_NUMBER is not set.")
+            if password == "":
+                print("PASSWORD is not set.")
+            if notification_level < 0 or notification_level > 4:
+                print("NOTIFICATION_LEVEL must be an integer between 0 and 4.")
+            if ntfy_server == "":
+                print("NTFY_SERVER is not set.")
             exit(1)
 
         browser = None

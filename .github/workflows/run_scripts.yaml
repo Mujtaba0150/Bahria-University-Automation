@@ -29,5 +29,6 @@ jobs:
           NOTIFICATION_LEVEL: ${{ secrets.NOTIFICATION_LEVEL }}
           NOTIFY_SUBMITTED: ${{ secrets.NOTIFY_SUBMITTED }}
           INSTITUTION: ${{ secrets.INSTITUTION }}
+          NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
         # Using --ntfy to ensure you get the alerts on your phone
         run: python githubActions.py
