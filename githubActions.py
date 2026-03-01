@@ -8,11 +8,9 @@ import os
 load_dotenv()
 enrollment_number = os.getenv("ENROLLMENT_NUMBER", "")
 password = os.getenv("PASSWORD", "")
-
-notification_level = int(os.getenv("NOTIFICATION_LEVEL", "0")) if os.getenv("NOTIFICATION_LEVEL", "0").isdigit() else 0
-notify_submitted = os.getenv("NOTIFY_SUBMITTED", "1") == "1"
-instituition = int(os.getenv("INSTITUTION", "6")) if os.getenv("INSTITUTION", "6").isdigit() else 6
-
+notification_level = int(os.getenv("NOTIFICATION_LEVEL", "0"))
+notify_submitted = int(os.getenv("NOTIFY_SUBMITTED", "1"))
+instituition = int(os.getenv("INSTITUTION", "6"))
 ntfy_server = os.getenv("NTFY_SERVER", "")
 
 def clean_text(text: str) -> str:
@@ -178,5 +176,4 @@ if __name__ == "__main__":
         print(f"Error during automation: {str(e)}")
         send_notification(f"Error during automation: {str(e)}", 1)
     finally:
-        if browser: # type: ignore
-            browser.close()
+        exit(0)

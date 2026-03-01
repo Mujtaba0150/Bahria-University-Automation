@@ -26,9 +26,9 @@ jobs:
           # Add these to your GitHub Repo Secrets!
           ENROLLMENT_NUMBER: ${{ secrets.ENROLLMENT_NUMBER }}
           PASSWORD: ${{ secrets.PASSWORD }}
-          NOTIFICATION_LEVEL: ${{ secrets.NOTIFICATION_LEVEL }}
-          NOTIFY_SUBMITTED: ${{ secrets.NOTIFY_SUBMITTED }}
-          INSTITUTION: ${{ secrets.INSTITUTION }}
+          NOTIFICATION_LEVEL: ${{ secrets.NOTIFICATION_LEVEL || '0' }}
+          NOTIFY_SUBMITTED: ${{ secrets.NOTIFY_SUBMITTED || '1' }}
+          INSTITUTION: ${{ secrets.INSTITUTION || '6' }}
           NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
-        # Using --ntfy to ensure you get the alerts on your phone
+        
         run: python githubActions.py
