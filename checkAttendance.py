@@ -12,6 +12,7 @@ password = os.getenv("PASSWORD", "")
 data_dir = os.getenv("USER_DATA_DIR", "")
 instituition = int(os.getenv("INSTITUTION", "6"))
 check_updates = int(os.getenv("CHECK_UPDATES", "1"))
+ntfy_server = os.getenv("NTFY_SERVER", "")
 
 def format_number(n):
     return f"{n:.2f}".rstrip('0').rstrip('.')
@@ -92,6 +93,19 @@ def start_playwright(debug_mode: bool) -> BrowserContext:
 
     return browser
 
+def send_notification(subject):
+    try:
+        response = requests.post(
+            f"https://ntfy.sh/{ntfy_server}",
+            data=f"Your attendance for {subject} has exceeded the allowed absence limit.",
+            headers={"Title": f"Attendance Alert: {subject}", "Priority": "5"},
+            timeout=5
+        )
+        response.raise_for_status()
+        print(f"Notification sent for {subject}")
+    except requests.RequestException as e:
+        print(f"Failed to send notification for {subject}: {e}")
+
 def scrape_attendance(page: Page, debug_mode: bool):
     """Multiply by 4 so for 1 credit hour course u can be absent for 4 hours, for 2 u can be absent for 8 etc (it works slightly differently for lab because it has 3 contact hours so u can be absent for 12 hours)."""
 
@@ -117,13 +131,18 @@ def scrape_attendance(page: Page, debug_mode: bool):
         absences_remaining = max_absences - float(absences)
 
         if subject.split()[-1] == "Lab":
-            if int(format_number(absences_remaining / (int(credits) * 3))) <= 0:
+            if int(format_number(absences_remaining / (int(credits) * 3))) <= 2:
                 print(f"\033[1;97m{subject}\033[0m: \033[1;91m{format_number(absences_remaining / (int(credits) * 3))}/{int(max_absences / (int(credits) * 3))}\033[0m")
+                if int(format_number(absences_remaining / (int(credits) * 3))) < 0:
+                    send_notification(subject)
             else:
                 print(f"\033[1;97m{subject}\033[0m: {format_number(absences_remaining / (int(credits) * 3))}/{int(max_absences / (int(credits) * 3))}")
+        
         else:
-            if int(format_number(absences_remaining / int(credits) * 2)) <= 0:
+            if int(format_number(absences_remaining / int(credits) * 2)) <= 2:
                 print(f"\033[1;97m{subject}\033[0m: \033[1;91m{format_number((absences_remaining / int(credits) * 2))}/{int(max_absences / int(credits) * 2)}\033[0m")
+                if int(format_number(absences_remaining / int(credits) * 2)) < 0:
+                    send_notification(subject)
             else:
                 print(f"\033[1;97m{subject}\033[0m: {format_number((absences_remaining / int(credits) * 2))}/{int(max_absences / int(credits) * 2)}")
 

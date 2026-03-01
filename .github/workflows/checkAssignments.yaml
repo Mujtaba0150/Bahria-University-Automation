@@ -1,4 +1,4 @@
-name: LMS Assignment Bot
+name: Check Assignments
 on:
   schedule:
     # 03:00, 09:00, 12:00 UTC (8am, 2pm, 6pm PKT)
