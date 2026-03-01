@@ -3,25 +3,20 @@ from datetime import datetime
 from dotenv import load_dotenv
 from time import sleep
 import requests
-import argparse
 import os
 
 load_dotenv()
 enrollment_number = os.getenv("ENROLLMENT_NUMBER", "")
 password = os.getenv("PASSWORD", "")
-notification_level = int(os.getenv("NOTIFICATION_LEVEL", "0"))
-notify_submitted = int(os.getenv("NOTIFY_SUBMITTED", "1"))
-instituition = int(os.getenv("INSTITUTION", "6"))
-check_updates = int(os.getenv("CHECK_UPDATES", "1"))
+
+notification_level = int(os.getenv("NOTIFICATION_LEVEL", "0")) if os.getenv("NOTIFICATION_LEVEL", "0").isdigit() else 0
+notify_submitted = os.getenv("NOTIFY_SUBMITTED", "1") == "1"
+instituition = int(os.getenv("INSTITUTION", "6")) if os.getenv("INSTITUTION", "6").isdigit() else 6
+
+ntfy_server = os.getenv("NTFY_SERVER", "")
 
 def clean_text(text: str) -> str:
     return " ".join(text.split())
-
-def parse_args():
-    '''Parses command line arguments.'''
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-N", "--ntfy", action="store", help="Send notifications via Ntfy using Server")
-    return parser.parse_args()
 
 def start_playwright():
     """Launches browser and runs survey automation."""
@@ -47,7 +42,7 @@ def start_playwright():
 
     return browser
 
-def send_notification(message: str, priority: int, ntfy_server: str = parse_args().ntfy):
+def send_notification(message: str, priority: int, ntfy_server: str = ntfy_server):
     if ntfy_server:
         requests.post(
             f"https://ntfy.sh/{ntfy_server}",
@@ -154,9 +149,7 @@ def alert_deadline(deadlines: list, ntfy_server: str):
 
 if __name__ == "__main__":
     try:
-        args = parse_args()
-        
-        if enrollment_number == "" or password == "" or notification_level < 0 or notification_level > 4 or args.ntfy == "":
+        if enrollment_number == "" or password == "" or notification_level < 0 or notification_level > 4 or ntfy_server == "":
             print("Error: One or more required environment variables are not set or are incorrectly set.")
             send_notification("Error: One or more required environment variables are not set or are incorrectly set.", 1)
             exit(1)
@@ -171,7 +164,7 @@ if __name__ == "__main__":
             # sleep(2000000)
             check_and_login(page)
             deadlines, patterns = fetch_assignments(page)
-            alert_deadline(deadlines, args.ntfy)
+            alert_deadline(deadlines, ntfy_server)
             browser.close()
     except Exception as e:
         print(f"Error during automation: {str(e)}")
