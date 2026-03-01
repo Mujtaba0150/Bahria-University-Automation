@@ -1,0 +1,33 @@
+name: LMS Assignment Bot
+on:
+  schedule:
+    # 03:00, 09:00, 12:00 UTC (8am, 2pm, 6pm PKT)
+    - cron: '0 3,9,13 * * *'
+  workflow_dispatch: # Manual trigger for testing
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install Dependencies
+        run: |
+          pip install playwright requests python-dotenv
+          playwright install --with-deps chromium
+      
+      - name: Run Script
+        env:
+          # Add these to your GitHub Repo Secrets!
+          ENROLLMENT_NUMBER: ${{ secrets.ENROLLMENT_NUMBER }}
+          PASSWORD: ${{ secrets.PASSWORD }}
+          NOTIFICATION_LEVEL: ${{ secrets.NOTIFICATION_LEVEL }}
+          NOTIFY_SUBMITTED: ${{ secrets.NOTIFY_SUBMITTED }}
+          INSTITUTION: ${{ secrets.INSTITUTION }}
+        # Using --ntfy to ensure you get the alerts on your phone
+        run: python githubActions.py --ntfy "mujtaba0150"
