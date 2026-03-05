@@ -12,12 +12,13 @@ notification_level = int(os.getenv("NOTIFICATION_LEVEL", "0"))
 notify_submitted = int(os.getenv("NOTIFY_SUBMITTED", "1"))
 instituition = int(os.getenv("INSTITUTION", "6"))
 ntfy_server = os.getenv("NTFY_SERVER", "")
+download_assignments = int(os.getenv("DOWNLOAD_ASSIGNMENTS", "0"))
 
 def clean_text(text: str) -> str:
     return " ".join(text.split())
 
 def start_playwright():
-    """Launches browser and runs survey automation."""
+    """Launches browser."""
     browser = p.chromium.launch(
         headless=True,
         args=[
@@ -40,13 +41,24 @@ def start_playwright():
 
     return browser
 
-def send_notification(message: str, priority: int, ntfy_server: str = ntfy_server):
-    if ntfy_server:
+def send_notification(title, message: str, priority: int, file_path: str = ""):
+    if ntfy_server and file_path != "":
+        requests.put(
+            f"https://ntfy.sh/{ntfy_server}",
+            data=open(file_path, 'rb'),
+            headers={"Title": title, "Priority": str(priority), "File": os.path.basename(file_path)},
+            params={
+                "message": message,
+            }
+        )
+    elif ntfy_server:
         requests.post(
             f"https://ntfy.sh/{ntfy_server}",
-            data=message,
-            headers={"Title": "Assignments Due Today", "Priority": str(priority)}
+            data=message.encode('utf-8'),
+            headers={"Title": title, "Priority": str(priority)},
         )
+    else:
+        print("ntfy_server is not set. Cannot send notification.")
 
 def check_and_login(page):
     '''Handles login and cookie persistence.'''
@@ -79,25 +91,50 @@ def check_and_login(page):
 
         elif ("QualityAssuranceSurveys.aspx" in page.url):
             print("Please complete the Quality Assurance Survey to proceed.")   
-            send_notification("Please complete the Quality Assurance Survey to proceed.", 2)
+            send_notification("Error" ,"Please complete the Quality Assurance Survey to proceed.", 2)
 
-def fetch_assignments(page: Page) -> tuple[list, list]:
+def download_assignment_file(page, subject_name: str, assignment_name: str, deadline_date: str, assignment_link: str) -> str:
+    '''Handles the downloading of an assignment file, creating directories if necessary, and returning the file pattern used to check for duplicates.'''
+    if not os.path.exists(f"{os.environ.get('HOME')}/{subject_name}"):
+        os.makedirs(f"{os.environ.get('HOME')}/{subject_name}")
+
+    subject_dir = f"{os.environ.get('HOME')}/{subject_name}"
+    file_base = f"{assignment_name} - {deadline_date}"
+    
+    with page.expect_download() as download_info:
+        page.evaluate(f"window.location.href = '{assignment_link}'")
+    
+    download = download_info.value
+    file_name = download.suggested_filename
+    _, file_ext = os.path.splitext(file_name)
+    final_path = os.path.join(subject_dir, f"{file_base}{file_ext}")
+    download.save_as(final_path)
+
+    return final_path
+
+def fetch_assignments(page: Page) -> list:
     '''Fetches assignments from the LMS and returns assignments with deadlines and patterns of downloaded files so that old assignment files can be cleaned up.'''
     deadlines = []
-    patterns = []
+    final_path = None
 
     page.click("body > div > aside > section > ul > li:nth-child(5)")
     subjects_list = page.locator("#courseId option").all()
     subjects = [(i, clean_text(s.inner_text())) for i, s in enumerate(subjects_list)]
+
     for index, subject_name in subjects:
         page.select_option("#courseId", index=index)
         page.wait_for_selector("table.table-hover tbody tr")
         rows = page.locator("table.table-hover tbody tr").all()[1:]
+
         for row in rows:
             cells = row.locator("td").all()
+
             if len(cells) < 8:
                 continue
             action_col = cells[6].text_content()
+            action_title = cells[6].get_attribute("title") or ""
+            extended = "Extended" in action_title
+
             if "Submit" in action_col or "Delete" in action_col: # pyright: ignore[reportOperatorIssue]
                 assignment_number = cells[0].text_content().strip() # pyright: ignore[reportOptionalMemberAccess]
                 assignment_name = cells[1].text_content().strip() # pyright: ignore[reportOptionalMemberAccess]
@@ -107,20 +144,23 @@ def fetch_assignments(page: Page) -> tuple[list, list]:
                     submitted = True
                 else:
                     submitted = False
+
+                if download_assignments:
+                    assignment_link = f"https://lms.bahria.edu.pk/Student/{cells[2].first.locator('a').first.get_attribute('href')}"
+                    final_path = download_assignment_file(page, subject_name, assignment_name, deadline_date, assignment_link)
                 
                 if deadline_date:
-                    deadlines.append((assignment_number, subject_name, deadline_date, submitted))
-
-    return deadlines, patterns
+                    deadlines.append((assignment_number, subject_name, deadline_date, submitted, extended, final_path if download_assignments else None))
+    return deadlines
 
 def alert_deadline(deadlines: list, ntfy_server: str):
     today = datetime.today().date()
     parsed_deadlines = []
 
-    for assignment_number, subject, date_str, submitted in deadlines:
+    for assignment_number, subject, date_str, submitted, extended, final_path in deadlines:
         deadline_date = datetime.strptime(date_str, "%d %B %Y").date()
         days_left = (deadline_date - today).days
-        parsed_deadlines.append((assignment_number, subject, deadline_date, days_left, submitted))
+        parsed_deadlines.append((assignment_number, subject, deadline_date, days_left, submitted, extended, final_path))
 
     parsed_deadlines.sort(key=lambda x: x[3])
 
@@ -129,27 +169,32 @@ def alert_deadline(deadlines: list, ntfy_server: str):
 
     notifications = []
 
-    for assignment_number, subject, deadline_date, days_left, submitted in parsed_deadlines:
-        display_date = deadline_date.strftime("%#d %B") if os.name == "nt" else deadline_date.strftime("%-d %B")
+    for assignment_number, subject, deadline_date, days_left, submitted, extended, final_path in parsed_deadlines:
+        display_date = deadline_date.strftime("%-d %B")
         notification_message = f"{assignment_number}. {subject} - {display_date} {'Submitted' if submitted else ''}"
 
         if days_left <= max_days_for_notification and (not submitted or notify_submitted):
             priority = 5 if days_left == 0 else 4 if days_left <= 4 else 3
-            notifications.append((notification_message, priority, submitted))
+            notifications.append((notification_message, days_left, priority, submitted, extended, final_path))
 
-    for notification, priority, submitted in notifications:
-        if ntfy_server:
-            requests.post(
-                f"https://ntfy.sh/{ntfy_server}",
-                data=notification,
-                headers={"Title": "Assignments Due Today", "Priority": str(priority)}
-            )
+    for notification, days_left, priority, submitted, extended, final_path in notifications:
+            if ntfy_server and (not submitted or notify_submitted or extended):
+                if days_left == 0:
+                    send_notification("Assignment Due Today", notification, priority, final_path if final_path else "")
+                elif days_left <= 4:
+                    send_notification("Assignment Due in Next 4 Days", notification, priority, final_path if final_path else "")
+                elif days_left <= 7:
+                    send_notification("Assignment Due in Next 7 Days", notification, priority, final_path if final_path else "")
+                elif days_left <= 14:
+                    send_notification("Assignment Due in Next 14 Days", notification, priority, final_path if final_path else "")
+                else:
+                    send_notification("Upcoming Assignments", notification, priority, final_path if final_path else "")
 
 if __name__ == "__main__":
     try:
         if enrollment_number == "" or password == "" or notification_level < 0 or notification_level > 4 or ntfy_server == "":
             print("Error: One or more required environment variables are not set or are incorrectly set.")
-            send_notification("Error: One or more required environment variables are not set or are incorrectly set.", 1)
+            send_notification("Error", "Error: One or more required environment variables are not set or are incorrectly set.", 1)
             if enrollment_number == "":
                 print("ENROLLMENT_NUMBER is not set.")
             if password == "":
@@ -169,11 +214,11 @@ if __name__ == "__main__":
             
             # sleep(2000000)
             check_and_login(page)
-            deadlines, patterns = fetch_assignments(page)
+            deadlines = fetch_assignments(page)
             alert_deadline(deadlines, ntfy_server)
             browser.close()
     except Exception as e:
         print(f"Error during automation: {str(e)}")
-        send_notification(f"Error during automation: {str(e)}", 1)
+        send_notification("Error", f"Error during automation: {str(e)}", 1)
     finally:
         exit(0)

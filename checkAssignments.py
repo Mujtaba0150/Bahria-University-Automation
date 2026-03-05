@@ -70,13 +70,13 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-k", "--kde", action="store", help="Send notifications via KDE Connect using Device ID")
     parser.add_argument("-N", "--ntfy", action="store", help="Send notifications via Ntfy using Server")
-    parser.add_argument("-n", action="store_true", dest="check_assignments", help="Don't download assignments")
+    parser.add_argument("-n", action="store_false", dest="download_assignments", help="Don't download assignments")
     parser.add_argument("-w", "--whatsapp", action="store_true", help="Format for WhatsApp Message")
     parser.add_argument("-d", "--debug", action="store_true", help="Enable debug mode")
     return parser.parse_args()
 
 def start_playwright(debug_mode: bool) -> BrowserContext:
-    """Launches persistent browser and runs survey automation."""
+    """Launches persistent browser."""
     browser = p.chromium.launch_persistent_context(
         user_data_dir=data_dir,
         headless=not debug_mode,
@@ -219,7 +219,17 @@ def cleanup_old_files(download_dir: str, patterns: list, debug_mode: bool):
                 except Exception as e:
                     print(f"Error deleting directory {full_path}: {e}")
 
-def fetch_assignments(page: Page, check_assignments:bool, debug_mode: bool) -> tuple[list, list]:
+def send_notification(title, message: str, priority: int, ntfy_server: str):
+    if ntfy_server:
+        requests.put(
+            f"https://ntfy.sh/{ntfy_server}",
+            data=message,
+            headers={"Title": title, "Priority": str(priority)}
+        )
+    else:
+        print("ntfy_server is not set. Cannot send notification.")
+
+def fetch_assignments(page: Page, download_assignments:bool, debug_mode: bool) -> tuple[list, list]:
     '''Fetches assignments from the LMS and returns assignments with deadlines and patterns of downloaded files so that old assignment files can be cleaned up.'''
     deadlines = []
     patterns = []
@@ -227,6 +237,7 @@ def fetch_assignments(page: Page, check_assignments:bool, debug_mode: bool) -> t
     page.click("body > div > aside > section > ul > li:nth-child(5)")
     subjects_list = page.locator("#courseId option").all()
     subjects = [(i, clean_text(s.inner_text())) for i, s in enumerate(subjects_list)]
+
     for index, subject_name in subjects:
         page.select_option("#courseId", index=index)
         page.wait_for_selector("table.table-hover tbody tr")
@@ -236,6 +247,8 @@ def fetch_assignments(page: Page, check_assignments:bool, debug_mode: bool) -> t
             if len(cells) < 8:
                 continue
             action_col = cells[6].text_content()
+            action_title = cells[6].get_attribute("title") or ""
+            extended = "Extended" in action_title
             if "Submit" in action_col or "Delete" in action_col: # pyright: ignore[reportOperatorIssue]
                 assignment_number = cells[0].text_content().strip() # pyright: ignore[reportOptionalMemberAccess]
                 assignment_name = cells[1].text_content().strip() # pyright: ignore[reportOptionalMemberAccess]
@@ -246,13 +259,13 @@ def fetch_assignments(page: Page, check_assignments:bool, debug_mode: bool) -> t
                 else:
                     submitted = False
 
-                if not check_assignments:
-                    assignment_link = f"https://lms.bahria.edu.pk/Student/{cells[2].locator('a').get_attribute('href')}"
+                if download_assignments:
+                    assignment_link = f"https://lms.bahria.edu.pk/Student/{cells[2].first.locator('a').first.get_attribute('href')}"
                     pattern = download_assignment_file(page, subject_name, assignment_name, deadline_date, assignment_link) # pyright: ignore[reportArgumentType]
                     patterns.append(pattern)
                 
                 if deadline_date:
-                    deadlines.append((assignment_number, subject_name, deadline_date, submitted))
+                    deadlines.append((assignment_number, subject_name, deadline_date, submitted, extended))
 
     return deadlines, patterns
 
@@ -281,10 +294,10 @@ def display_deadlines(deadlines: list, KDE_device: str, ntfy_server: str):
     today = datetime.today().date()
     parsed_deadlines = []
 
-    for assignment_number, subject, date_str, submitted in deadlines:
+    for assignment_number, subject, date_str, submitted, extended in deadlines:
         deadline_date = datetime.strptime(date_str, "%d %B %Y").date()
         days_left = (deadline_date - today).days
-        parsed_deadlines.append((assignment_number, subject, deadline_date, days_left, submitted))
+        parsed_deadlines.append((assignment_number, subject, deadline_date, days_left, submitted, extended))
 
     parsed_deadlines.sort(key=lambda x: x[3])
 
@@ -304,8 +317,9 @@ def display_deadlines(deadlines: list, KDE_device: str, ntfy_server: str):
     notifications = []
     submitted_color = Colors.GREEN_BRIGHT
     show_submitted = lambda s: f"{submitted_color} (Submitted){Colors.RESET}" if s else ""
+    show_extended = lambda e: f"{submitted_color} (Extended){Colors.RESET}" if e else ""
 
-    for assignment_number, subject, deadline_date, days_left, submitted in parsed_deadlines:
+    for assignment_number, subject, deadline_date, days_left, submitted, extended in parsed_deadlines:
         display_date = deadline_date.strftime("%#d %B") if os.name == "nt" else deadline_date.strftime("%-d %B")
         notification_message = f"{assignment_number}. {subject} - {display_date} {'Submitted' if submitted else ''}"
 
@@ -318,14 +332,14 @@ def display_deadlines(deadlines: list, KDE_device: str, ntfy_server: str):
                 colored = (
                     f"{color}A{assignment_number} {subject}"
                     f"{' - ' + display_date if days_left > 0 else ''}"
-                    f"{suffix}{show_submitted(submitted)}{Colors.RESET}"
+                    f"{suffix}{show_submitted(submitted)}{show_extended(extended)}{Colors.RESET}"
                 )
                 target.append(colored)
 
                 if (KDE_device or ntfy_server) and days_left <= max_days_for_notification:
                     if submitted and not notify_submitted:
                         break
-                    notifications.append((notification_message, priority, submitted))
+                    notifications.append((notification_message, days_left, priority, submitted, extended))
                 break
 
     sections = [
@@ -341,16 +355,22 @@ def display_deadlines(deadlines: list, KDE_device: str, ntfy_server: str):
                 print(line)
             print()
 
-    for notification, priority, submitted in notifications:
-        if KDE_device and (not submitted or notify_submitted):
-            subprocess.run(["kdeconnect-cli", "--device", KDE_device, "--ping-msg", notification])
+    if ntfy_server or KDE_device:
+        for notification, days_left, priority, submitted, extended in notifications:
+            if KDE_device and (not submitted or notify_submitted):
+                subprocess.run(["kdeconnect-cli", "--device", KDE_device, "--ping-msg", notification])
 
-        if ntfy_server and (not submitted or notify_submitted):
-            requests.post(
-                f"https://ntfy.sh/{ntfy_server}",
-                data=notification,
-                headers={"Title": "Assignments Due Today", "Priority": str(priority)}
-            )
+            if ntfy_server and (not submitted or notify_submitted or extended):
+                if days_left == 0:
+                    send_notification("Assignment Due Today", notification, priority, ntfy_server)
+                elif days_left <= 4:
+                    send_notification("Assignment Due in Next 4 Days", notification, priority, ntfy_server)
+                elif days_left <= 7:
+                    send_notification("Assignment Due in Next 7 Days", notification, priority, ntfy_server)
+                elif days_left <= 14:
+                    send_notification("Assignment Due in Next 14 Days", notification, priority, ntfy_server)
+                else:
+                    send_notification("Upcoming Assignments", notification, priority, ntfy_server)
 
 if __name__ == "__main__":
     try:
@@ -367,7 +387,7 @@ if __name__ == "__main__":
                 page = browser.pages[0]
                 # sleep(2000000)
                 check_and_login(page, args.debug)
-                deadlines, patterns = fetch_assignments(page, args.check_assignments, args.debug)
+                deadlines, patterns = fetch_assignments(page, args.download_assignments, args.debug)
                 browser.close()
 
         except Exception as e:

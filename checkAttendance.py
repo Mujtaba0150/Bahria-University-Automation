@@ -69,7 +69,7 @@ def persist_cookies(browser, debug_mode: bool):
                 print(f"Made {cookie['name']} cookie persistent.")
 
 def start_playwright(debug_mode: bool) -> BrowserContext:
-    """Launches persistent browser and runs survey automation."""
+    """Launches persistent browser."""
     browser = p.chromium.launch_persistent_context(
         user_data_dir=data_dir,
         headless=not debug_mode,

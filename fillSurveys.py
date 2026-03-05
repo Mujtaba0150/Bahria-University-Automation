@@ -42,7 +42,7 @@ def check_for_updates():
         print("Could not check for updates. Please check your internet connection.")
 
 def start_playwright(debug_mode: bool):
-    """Launches persistent browser and runs survey automation."""
+    """Launches persistent browser."""
     browser = p.chromium.launch_persistent_context(
         user_data_dir=data_dir,
         headless= not debug_mode,
