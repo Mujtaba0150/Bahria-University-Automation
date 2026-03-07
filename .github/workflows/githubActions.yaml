@@ -1,4 +1,4 @@
-name: Check Attendance
+name: Check Assignments
 on:
   schedule:
     # 03:00, 09:00, 12:00 UTC (8am, 2pm, 6pm PKT)
@@ -8,6 +8,7 @@ on:
 jobs:
   run-bot:
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     steps:
       - uses: actions/checkout@v4
       
@@ -26,7 +27,13 @@ jobs:
           # Add these to your GitHub Repo Secrets!
           ENROLLMENT_NUMBER: ${{ secrets.ENROLLMENT_NUMBER }}
           PASSWORD: ${{ secrets.PASSWORD }}
-          INSTITUTION: ${{ secrets.INSTITUTION || '6' }}
           NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
+          NOTIFICATION_LEVEL: ${{ secrets.NOTIFICATION_LEVEL || '0' }}
+          NOTIFY_SUBMITTED: ${{ secrets.NOTIFY_SUBMITTED || '1' }}
+          INSTITUTION: ${{ secrets.INSTITUTION || '6' }}
+          DOWNLOAD_ASSIGNMENTS: ${{ secrets.DOWNLOAD_ASSIGNMENTS || '0' }}
         
-        run: python checkAttendance.py
+        run: |
+          set +e
+          python githubActions.py 
+          python checkAttendance.py
