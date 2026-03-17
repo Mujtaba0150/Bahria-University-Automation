@@ -243,9 +243,7 @@ The `githubActions.py` script runs automatically on a schedule via GitHub Action
               DOWNLOAD_ASSIGNMENTS: ${{ secrets.DOWNLOAD_ASSIGNMENTS || '0' }}
             
             run: |
-              set +e
               python githubActions.py 
-              python checkAttendance.py
    ```
 
 2. Add your credentials as GitHub Secrets:
