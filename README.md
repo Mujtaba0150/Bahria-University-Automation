@@ -123,7 +123,7 @@ These variables are optional and provide additional configuration:
 | `AGE` | 0 | 0=<22, 1=22-29, 2=>29 | `fillSurveys.py` | Age range for demographic questions |
 | `ON_CAMPUS` | 1 | 0=Off Campus, 1=On Campus | `fillSurveys.py` | Residence status for demographic questions |
 | `NOTIFICATION_LEVEL` | 0 | 0-4 | `checkAssignments.py`, `githubActions.py` | Notification verbosity level (0 = All assignments, 1 = Due to next 4 days, 2 = Due within 7 days, 3 = Due within 14 days, 4 = After 14 days) |
-| `NOTIFY_SUBMITTED` | 1 | 0/1 | `checkAssignments.py`, `githubActions.py` | Whether to include submitted assignments in notifications |
+| `NOTIFY_EXTENDED` | 1 | 0/1 | `checkAssignments.py`, `githubActions.py` | Whether to include submitted assignments in notifications |
 | `NTFY_SERVER` | (empty) | Server name | `githubActions.py`, `Attendance.py` | **Required** for `githubActions.py`. Ntfy.sh server name for push notifications (e.g., "myserver"). Enables Ntfy.sh integration for automated notifications |
 | `DOWNLOAD_ASSIGNMENTS` | 1 | 0/1 | `githubActions.py` | Whether to automatically download assignment files and include with ntfy.sh notifications (May use more GitHub Actions minutes) |
 | `CHECK_UPDATES` | 1 | 0/1 | All scripts | Whether to check for new versions from GitHub repository |
@@ -238,7 +238,6 @@ The `githubActions.py` script runs automatically on a schedule via GitHub Action
               PASSWORD: ${{ secrets.PASSWORD }}
               NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
               NOTIFICATION_LEVEL: ${{ secrets.NOTIFICATION_LEVEL || '0' }}
-              NOTIFY_SUBMITTED: ${{ secrets.NOTIFY_SUBMITTED || '1' }}
               NOTIFY_EXTENDED: ${{ secrets.NOTIFY_EXTENDED || '1' }}
               INSTITUTION: ${{ secrets.INSTITUTION || '6' }}
               DOWNLOAD_ASSIGNMENTS: ${{ secrets.DOWNLOAD_ASSIGNMENTS || '0' }}
@@ -254,7 +253,6 @@ The `githubActions.py` script runs automatically on a schedule via GitHub Action
    - `PASSWORD`: Your CMS password
    - `NTFY_SERVER`: Your Ntfy.sh server name (required)
    - `NOTIFICATION_LEVEL`: (Optional) Notification level (0-4)
-   - `NOTIFY_SUBMITTED`: (Optional) Include submitted assignments in notifications (0 or 1)
    - `NOTIFY_EXTENDED`: (Optional) Include extended deadline notifications when the assignment has already been submitted (0 or 1)
    - `DOWNLOAD_ASSIGNMENTS`: (Optional) Download assignment files with notifications (0 or 1)
 

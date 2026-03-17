@@ -247,17 +247,15 @@ def fetch_assignments(page: Page, download_assignments:bool, debug_mode: bool) -
             if len(cells) < 8:
                 continue
             action_col = cells[6].text_content()
-            action_title = cells[6].get_attribute("title") or ""
-            extended = "Extended" in action_title
+
             if "Submit" in action_col or "Delete" in action_col: # pyright: ignore[reportOperatorIssue]
+                deadline_col = cells[7].locator("small")
+                deadline_title = deadline_col.first.get_attribute("title") or ""
+                extended = "Extended" in deadline_title
+                submitted = "Delete" in action_col # pyright: ignore[reportOperatorIssue]
                 assignment_number = cells[0].text_content().strip() # pyright: ignore[reportOptionalMemberAccess]
                 assignment_name = cells[1].text_content().strip() # pyright: ignore[reportOptionalMemberAccess]
-                deadline_date = cells[7].locator("small").first.text_content().split('-')[0].strip() # pyright: ignore[reportOptionalMemberAccess]
-                
-                if "Delete" in action_col: # pyright: ignore[reportOperatorIssue]
-                    submitted = True
-                else:
-                    submitted = False
+                deadline_date = deadline_col.first.text_content().split('-')[0].strip() # pyright: ignore[reportOptionalMemberAccess]
 
                 if download_assignments:
                     assignment_link = f"https://lms.bahria.edu.pk/Student/{cells[2].first.locator('a').first.get_attribute('href')}"
