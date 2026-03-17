@@ -9,7 +9,7 @@ load_dotenv()
 enrollment_number = os.getenv("ENROLLMENT_NUMBER", "")
 password = os.getenv("PASSWORD", "")
 notification_level = int(os.getenv("NOTIFICATION_LEVEL", "0"))
-notify_submitted = int(os.getenv("NOTIFY_SUBMITTED", "1"))
+notify_extended = int(os.getenv("NOTIFY_EXTENDED", "1"))
 instituition = int(os.getenv("INSTITUTION", "6"))
 ntfy_server = os.getenv("NTFY_SERVER", "")
 download_assignments = int(os.getenv("DOWNLOAD_ASSIGNMENTS", "0"))
@@ -173,12 +173,12 @@ def alert_deadline(deadlines: list, ntfy_server: str):
         display_date = deadline_date.strftime("%-d %B")
         notification_message = f"{assignment_number}. {subject} - {display_date} {'Submitted' if submitted else ''}"
 
-        if days_left <= max_days_for_notification and (not submitted or notify_submitted):
+        if days_left <= max_days_for_notification and (not submitted or (notify_extended and extended)):
             priority = 5 if days_left == 0 else 4 if days_left <= 4 else 3
             notifications.append((notification_message, days_left, priority, submitted, extended, final_path))
 
     for notification, days_left, priority, submitted, extended, final_path in notifications:
-            if ntfy_server and (not submitted or notify_submitted or extended):
+            if ntfy_server and (not submitted or (notify_extended and extended)):
                 if days_left == 0:
                     send_notification("Assignment Due Today", notification, priority, final_path if final_path else "")
                 elif days_left <= 4:

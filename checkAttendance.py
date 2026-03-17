@@ -13,6 +13,7 @@ data_dir = os.getenv("USER_DATA_DIR", "")
 instituition = int(os.getenv("INSTITUTION", "6"))
 check_updates = int(os.getenv("CHECK_UPDATES", "1"))
 ntfy_server = os.getenv("NTFY_SERVER", "")
+github_workflow = os.getenv("GITHUB_WORKFLOW", False)
 
 def format_number(n):
     return f"{n:.2f}".rstrip('0').rstrip('.')
@@ -153,7 +154,7 @@ def parse_args():
 
 if __name__ == "__main__":
     try:
-        if enrollment_number == "" or password == "" or data_dir == "":
+        if enrollment_number == "" or password == "" or (data_dir == "" and not github_workflow):
             print("Error: ENROLLMENT_NUMBER, PASSWORD, and USER_DATA_DIR must be set in the .env file.")
             exit(1)
 

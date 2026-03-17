@@ -1,14 +1,14 @@
-name: Check Assignments
+name: Check Assignments and Attendance
 on:
   schedule:
-    # 03:00, 09:00, 12:00 UTC (8am, 2pm, 6pm PKT)
-    - cron: '0 3,9,13 * * *'
+    - cron: '0 3,9,13 * * *' # Modify to your preference
   workflow_dispatch: # Manual trigger for testing
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 3
+    
     steps:
       - uses: actions/checkout@v4
       
@@ -24,12 +24,12 @@ jobs:
       
       - name: Run Script
         env:
-          # Add these to your GitHub Repo Secrets!
           ENROLLMENT_NUMBER: ${{ secrets.ENROLLMENT_NUMBER }}
           PASSWORD: ${{ secrets.PASSWORD }}
           NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
           NOTIFICATION_LEVEL: ${{ secrets.NOTIFICATION_LEVEL || '0' }}
           NOTIFY_SUBMITTED: ${{ secrets.NOTIFY_SUBMITTED || '1' }}
+          NOTIFY_EXTENDED: ${{ secrets.NOTIFY_EXTENDED || '1' }}
           INSTITUTION: ${{ secrets.INSTITUTION || '6' }}
           DOWNLOAD_ASSIGNMENTS: ${{ secrets.DOWNLOAD_ASSIGNMENTS || '0' }}
         

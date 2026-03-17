@@ -37,7 +37,7 @@ enrollment_number = os.getenv("ENROLLMENT_NUMBER", "")
 password = os.getenv("PASSWORD", "")
 data_dir = os.getenv("USER_DATA_DIR", "")
 notification_level = int(os.getenv("NOTIFICATION_LEVEL", "0"))
-notify_submitted = int(os.getenv("NOTIFY_SUBMITTED", "1"))
+notify_extended = int(os.getenv("NOTIFY_EXTENDED", "1"))
 instituition = int(os.getenv("INSTITUTION", "6"))
 check_updates = int(os.getenv("CHECK_UPDATES", "1"))
 
@@ -337,7 +337,7 @@ def display_deadlines(deadlines: list, KDE_device: str, ntfy_server: str):
                 target.append(colored)
 
                 if (KDE_device or ntfy_server) and days_left <= max_days_for_notification:
-                    if submitted and not notify_submitted:
+                    if not submitted or (notify_extended and extended):
                         break
                     notifications.append((notification_message, days_left, priority, submitted, extended))
                 break
@@ -357,10 +357,10 @@ def display_deadlines(deadlines: list, KDE_device: str, ntfy_server: str):
 
     if ntfy_server or KDE_device:
         for notification, days_left, priority, submitted, extended in notifications:
-            if KDE_device and (not submitted or notify_submitted):
+            if KDE_device and (not submitted or (notify_extended and extended)):
                 subprocess.run(["kdeconnect-cli", "--device", KDE_device, "--ping-msg", notification])
 
-            if ntfy_server and (not submitted or notify_submitted or extended):
+            if ntfy_server and (not submitted or (notify_extended and extended)):
                 if days_left == 0:
                     send_notification("Assignment Due Today", notification, priority, ntfy_server)
                 elif days_left <= 4:
@@ -428,7 +428,9 @@ if __name__ == "__main__":
             display_whatsapp_formatted_deadlines(deadlines)
         else:
             display_deadlines(deadlines, args.kde, args.ntfy)
-        cleanup_old_files(download_dir, patterns, args.debug)
+        
+        if args.download_assignments:
+            cleanup_old_files(download_dir, patterns, args.debug)
 
         if check_updates:
             check_for_updates()

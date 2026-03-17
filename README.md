@@ -2,20 +2,28 @@
 
 A collection of Python automation scripts to streamline common tasks for Bahria University students, including checking assignments, monitoring attendance, and filling quality assurance surveys.
 
+## How is it Different From Other Similar Projects?
+
+
+
 ## Features
 
 ### Assignment Tracker (`checkAssignments.py`)
 - Fetches pending and submitted assignments from LMS
 - Automatically downloads and organizes assignment files by date
 - Color-coded deadline display based on urgency (red, yellow, green)
-- Detects extended deadlines and removes outdated files
-- Supports notifications via KDE Connect or ntfy.sh
+- Detects extended deadlines with optional notifications
+- Automatic cleanup of outdated assignment files
+- Supports notifications via KDE Connect or ntfy.sh with priority levels
 - WhatsApp-formatted output for group descriptions
+- Comprehensive error logging with HTML snapshots and screenshots
 
 ### Attendance Monitor (`checkAttendance.py`)
 - Displays remaining absences per course with credit-based calculations
 - Handles regular and lab courses differently
 - Clean, color-coded output
+- Automatic Ntfy.sh notifications when attendance exceeds allowed limits (if GitHub Actions is set up)
+- Comprehensive error logging and debugging
 
 ### Survey Automation (`fillSurveys.py`)
 - Automatically fills quality assurance surveys (Teacher and Course Evaluation)
@@ -89,9 +97,7 @@ Both scripts will:
    AGE=0                             # 0=<22, 1=22-29, 2=>29
    ON_CAMPUS=1                       # 0=Off Campus, 1=On Campus
    NOTIFICATION_LEVEL=0              # 0-4 (0=all, 4=only overdue)
-   NOTIFY_SUBMITTED=1                # 0=exclude, 1=include submitted
-   NTFY_SERVER=your_ntfy_server      # Ntfy.sh server for GitHub Actions
-   DOWNLOAD_ASSIGNMENTS=0            # 0=don't download, 1=download
+   NOTIFY_EXTENDED=1                # 0=exclude, 1=include submitted assignments
    CHECK_UPDATES=1                   # 0=Don't check, 1=Check for updates
    ```
 
@@ -118,8 +124,8 @@ These variables are optional and provide additional configuration:
 | `ON_CAMPUS` | 1 | 0=Off Campus, 1=On Campus | `fillSurveys.py` | Residence status for demographic questions |
 | `NOTIFICATION_LEVEL` | 0 | 0-4 | `checkAssignments.py`, `githubActions.py` | Notification verbosity level (0 = All assignments, 1 = Due to next 4 days, 2 = Due within 7 days, 3 = Due within 14 days, 4 = After 14 days) |
 | `NOTIFY_SUBMITTED` | 1 | 0/1 | `checkAssignments.py`, `githubActions.py` | Whether to include submitted assignments in notifications |
-| `NTFY_SERVER` | (empty) | Server name | `githubActions.py` | **Required** for `githubActions.py`. Ntfy.sh server name for push notifications (e.g., "myserver"). Enables Ntfy.sh integration for automated notifications |
-| `DOWNLOAD_ASSIGNMENTS` | 1 | 0/1 | `githubActions.py` | Whether to automatically download assignment files (and include with ntfy.sh notifications) |
+| `NTFY_SERVER` | (empty) | Server name | `githubActions.py`, `Attendance.py` | **Required** for `githubActions.py`. Ntfy.sh server name for push notifications (e.g., "myserver"). Enables Ntfy.sh integration for automated notifications |
+| `DOWNLOAD_ASSIGNMENTS` | 1 | 0/1 | `githubActions.py` | Whether to automatically download assignment files and include with ntfy.sh notifications (May use more GitHub Actions minutes) |
 | `CHECK_UPDATES` | 1 | 0/1 | All scripts | Whether to check for new versions from GitHub repository |
 | `INSTITUTION` | 6 (Islamabad E-8 Campus) | 1-16 | All scripts | Institution selection on login page |
 
@@ -148,6 +154,7 @@ python checkAssignments.py
 - 🟡 Yellow: Due within 1-4 days (varying shades)
 - 🟢 Green: Due within 5+ days (varying shades)
 - Submitted assignments marked with "(Submitted)"
+- Extended  assignments marked with "(Extended)"
 
 **Note:** The WhatsApp flag formats assignment deadlines using predefined subject abbreviations (see `subjectAbbreviations` dict in the script). Feel free to contribute and add more abbreviations for your subjects as required.
 
@@ -176,7 +183,9 @@ python checkAttendance.py --debug
 
 **Screenshot:** ![Check Attendance Screenshot](images/checkAttendance.png)
 
----### Fill Surveys
+---
+
+### Fill Surveys
 
 Automatically fill quality assurance surveys (Teacher and Course Evaluation):
 
@@ -199,39 +208,45 @@ The `githubActions.py` script runs automatically on a schedule via GitHub Action
 
 1. Add this workflow file to `.github/workflows/assignment-check.yml`:
    ```yaml
-   name: Check Assignments
-   on:
-     schedule:
-       - cron: '0 3,9,13 * * *' # Modify to your preference
-     workflow_dispatch: # Manual trigger for testing
-
-   jobs:
-     run-bot:
-       runs-on: ubuntu-latest
-       steps:
-         - uses: actions/checkout@v4
-         
-         - name: Set up Python
-           uses: actions/setup-python@v5
-           with:
-             python-version: '3.11'
-         
-         - name: Install Dependencies
-           run: |
-             pip install playwright requests python-dotenv
-             playwright install --with-deps chromium
-         
-         - name: Run Script
-           env:
-             ENROLLMENT_NUMBER: ${{ secrets.ENROLLMENT_NUMBER }}
-             PASSWORD: ${{ secrets.PASSWORD }}
-             NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
-             NOTIFICATION_LEVEL: ${{ secrets.NOTIFICATION_LEVEL || '0' }}
-             NOTIFY_SUBMITTED: ${{ secrets.NOTIFY_SUBMITTED || '1' }}
-             INSTITUTION: ${{ secrets.INSTITUTION || '6' }}
-             DOWNLOAD_ASSIGNMENTS: ${{ secrets.DOWNLOAD_ASSIGNMENTS || '0' }}
-           
-           run: python githubActions.py
+    name: Check Assignments and Attendance
+    on:
+      schedule:
+        - cron: '0 3,9,13 * * *' # Modify to your preference
+      workflow_dispatch: # Manual trigger for testing
+    
+    jobs:
+      run-bot:
+        runs-on: ubuntu-latest
+        timeout-minutes: 3
+        
+        steps:
+          - uses: actions/checkout@v4
+          
+          - name: Set up Python
+            uses: actions/setup-python@v5
+            with:
+              python-version: '3.11'
+          
+          - name: Install Dependencies
+            run: |
+              pip install playwright requests python-dotenv
+              playwright install --with-deps chromium
+          
+          - name: Run Script
+            env:
+              ENROLLMENT_NUMBER: ${{ secrets.ENROLLMENT_NUMBER }}
+              PASSWORD: ${{ secrets.PASSWORD }}
+              NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
+              NOTIFICATION_LEVEL: ${{ secrets.NOTIFICATION_LEVEL || '0' }}
+              NOTIFY_SUBMITTED: ${{ secrets.NOTIFY_SUBMITTED || '1' }}
+              NOTIFY_EXTENDED: ${{ secrets.NOTIFY_EXTENDED || '1' }}
+              INSTITUTION: ${{ secrets.INSTITUTION || '6' }}
+              DOWNLOAD_ASSIGNMENTS: ${{ secrets.DOWNLOAD_ASSIGNMENTS || '0' }}
+            
+            run: |
+              set +e
+              python githubActions.py 
+              python checkAttendance.py
    ```
 
 2. Add your credentials as GitHub Secrets:
@@ -240,6 +255,7 @@ The `githubActions.py` script runs automatically on a schedule via GitHub Action
    - `NTFY_SERVER`: Your Ntfy.sh server name (required)
    - `NOTIFICATION_LEVEL`: (Optional) Notification level (0-4)
    - `NOTIFY_SUBMITTED`: (Optional) Include submitted assignments in notifications (0 or 1)
+   - `NOTIFY_EXTENDED`: (Optional) Include extended deadline notifications when the assignment has already been submitted (0 or 1)
    - `DOWNLOAD_ASSIGNMENTS`: (Optional) Download assignment files with notifications (0 or 1)
 
 **Notes:**
