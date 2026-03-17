@@ -14,9 +14,18 @@ instituition = int(os.getenv("INSTITUTION", "6"))
 check_updates = int(os.getenv("CHECK_UPDATES", "1"))
 
 def format_number(n):
+    """
+    @brief Formats a number to 2 decimal places, removing trailing zeros and decimal points.
+    @param n The number to format.
+    @return Formatted string representation of the number.
+    """
     return f"{n:.2f}".rstrip('0').rstrip('.')
 
 def check_for_updates():
+    """
+    @brief Checks if a new version of the application is available on GitHub.
+    @return None
+    """
     with open(os.path.join(os.path.dirname(__file__), "version.txt"), "r") as f:
         local_version = f.readline().strip()
         f.close()
@@ -34,7 +43,13 @@ def check_for_updates():
         print("Could not check for updates. Please check your internet connection.")
 
 def check_and_login_to_CMS(browser, page, debug_mode: bool):
-    """Handles login and cookie persistence."""
+    """
+    @brief Authenticates user and navigates to the attendance page, handling login if needed.
+    @param browser The BrowserContext object for managing cookies.
+    @param page The Playwright page object to interact with.
+    @param debug_mode Boolean flag to enable debug output.
+    @return None
+    """
     page.goto("https://cms.bahria.edu.pk/Sys/Student/ClassAttendance/StudentWiseAttendance.aspx")
     if "Login.aspx" in page.url:
         if debug_mode:
@@ -57,7 +72,12 @@ def check_and_login_to_CMS(browser, page, debug_mode: bool):
             check_and_login_to_CMS(page, browser, debug_mode)
 
 def persist_cookies(browser, debug_mode: bool):
-    """Makes CMS cookies persistent for a year."""
+    """
+    @brief Makes CMS cookies persistent for a year.
+    @param browser The BrowserContext object containing the cookies.
+    @param debug_mode Boolean flag to enable debug output.
+    @return None
+    """
     cookies = browser.cookies()
     for cookie in cookies:
         if cookie["name"] == "cms":
@@ -68,7 +88,11 @@ def persist_cookies(browser, debug_mode: bool):
                 print(f"Made {cookie['name']} cookie persistent.")
 
 def start_playwright(debug_mode: bool) -> BrowserContext:
-    """Launches persistent browser."""
+    """
+    @brief Launches a persistent Chromium browser with optimized settings.
+    @param debug_mode Boolean flag to launch browser in debug mode (non-headless).
+    @return BrowserContext object representing the persistent browser context.
+    """
     browser = p.chromium.launch_persistent_context(
         user_data_dir=data_dir,
         headless=not debug_mode,
@@ -93,8 +117,12 @@ def start_playwright(debug_mode: bool) -> BrowserContext:
     return browser
 
 def scrape_attendance(page: Page, debug_mode: bool):
-    """Multiply by 4 so for 1 credit hour course u can be absent for 4 hours, for 2 u can be absent for 8 etc (it works slightly differently for lab because it has 3 contact hours so u can be absent for 12 hours)."""
-
+    """
+    @brief Extracts and displays attendance statistics for all subjects.
+    @param page The Playwright page object containing attendance data.
+    @param debug_mode Boolean flag to enable debug output.
+    @return None
+    """
     rows = page.locator("#pageContent > div.container-fluid > div.table-responsive > table > tbody > tr").all()
     for row in rows:
         cells = row.locator("td").all()
@@ -129,6 +157,10 @@ def scrape_attendance(page: Page, debug_mode: bool):
                 print(f"\033[1;97m{subject}\033[0m: {format_number((absences_remaining / int(credits) * 2))}/{int(max_absences / int(credits) * 2)}")
 
 def parse_args():
+    """
+    @brief Parses command-line arguments for the attendance checker.
+    @return Parsed arguments object with debug option.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--debug", "-d", action="store_true", help="Enable debug mode")
     return parser.parse_args()

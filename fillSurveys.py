@@ -19,12 +19,20 @@ instituition = int(os.getenv("INSTITUTION", "6"))
 check_updates = int(os.getenv("CHECK_UPDATES", "1"))
 
 def clear_terminal():
+    """
+    @brief Clears the terminal/console screen based on the operating system.
+    @return None
+    """
     if platform.system() == "Windows":
         os.system("cls")
     else:
         os.system("clear")
 
 def check_for_updates():
+    """
+    @brief Checks if a new version of the application is available on GitHub.
+    @return None
+    """
     with open(os.path.join(os.path.dirname(__file__), "version.txt"), "r") as f:
         local_version = f.readline().strip()
         f.close()
@@ -42,7 +50,11 @@ def check_for_updates():
         print("Could not check for updates. Please check your internet connection.")
 
 def start_playwright(debug_mode: bool):
-    """Launches persistent browser."""
+    """
+    @brief Launches a persistent Chromium browser with optimized settings for survey access.
+    @param debug_mode Boolean flag to launch browser in debug mode (non-headless).
+    @return BrowserContext object representing the persistent browser context.
+    """
     browser = p.chromium.launch_persistent_context(
         user_data_dir=data_dir,
         headless= not debug_mode,
@@ -67,12 +79,21 @@ def start_playwright(debug_mode: bool):
     return browser
 
 def parse_args():
+    """
+    @brief Parses command-line arguments for the survey filler script.
+    @return Parsed arguments object with debug option.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--debug", "-d", action="store_true", help="Enable debug mode")
     return parser.parse_args()
 
 def check_and_login_to_CMS(page, debug_mode: bool):
-    """Handles login and cookie persistence."""
+    """
+    @brief Authenticates user and navigates to the survey page, handling login if needed.
+    @param page The Playwright page object to interact with.
+    @param debug_mode Boolean flag to enable debug output.
+    @return None
+    """
     page.goto("https://cms.bahria.edu.pk/Sys/Student/QualityAssurance/QualityAssuranceSurveys.aspx")
     
     if "Login.aspx" in page.url in page.url:
@@ -98,7 +119,12 @@ def check_and_login_to_CMS(page, debug_mode: bool):
             check_and_login_to_CMS(page, debug_mode)
 
 def persist_cookies(browser, debug_mode: bool):
-    """Makes CMS cookies persistent for a year."""
+    """
+    @brief Makes CMS cookies persistent for one year to maintain session across restarts.
+    @param browser The BrowserContext object containing the cookies.
+    @param debug_mode Boolean flag to enable debug output.
+    @return None
+    """
     cookies = browser.cookies()
     for cookie in cookies:
         if cookie["name"] == "cms":
@@ -109,7 +135,13 @@ def persist_cookies(browser, debug_mode: bool):
                 print(f"Made {cookie['name']} cookie persistent.")
 
 def handle_surveys(page, option: int, debug_mode: bool):
-    """Finds and fills all pending surveys."""
+    """
+    @brief Finds and handles all pending survey forms, allowing manual or automatic filling.
+    @param page The Playwright page object to interact with.
+    @param option The default survey response option (0-4).
+    @param debug_mode Boolean flag to enable debug output.
+    @return None
+    """
     page.goto("https://cms.bahria.edu.pk/Sys/Student/QualityAssurance/QualityAssuranceSurveys.aspx")
     page.wait_for_selector("#BodyPH_gvSurveyConducts")
 
@@ -134,7 +166,12 @@ def handle_surveys(page, option: int, debug_mode: bool):
             fill_survey(page, debug_mode, option)
 
 def extract_survey_data(rows, debug_mode: bool):
-    """Extracts survey URLs from table rows."""
+    """
+    @brief Extracts survey information from HTML table rows.
+    @param rows List of HTML row elements containing survey data.
+    @param debug_mode Boolean flag to enable debug output.
+    @return List of dictionaries containing survey information.
+    """
     survey_data = []
     for row in rows:
         sr_no = row.query_selector("td:nth-child(1)")
@@ -172,6 +209,13 @@ def extract_survey_data(rows, debug_mode: bool):
 
 # Format: BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_{section}_rbl_{question_number}_{option}_{question_number}
 def fill_survey(page, debug_mode: bool, option: int):
+    """
+    @brief Automatically fills a survey form with the specified option for all questions.
+    @param page The Playwright page object containing the survey form.
+    @param debug_mode Boolean flag to enable debug output.
+    @param option The response option to select (0=Strongly Agree, 4=Strongly Disagree).
+    @return None
+    """
     # Detect which survey is loaded
     heading_element = page.wait_for_selector("#BodyPH_surveyUserControl_lbName")
     heading_text = heading_element.inner_text()
@@ -232,7 +276,13 @@ def fill_survey(page, debug_mode: bool, option: int):
         print(f"Clicked: {submit_selector}")
 
 def fill_custom_survey(page, currently_filling, debug_mode: bool):
-    """Handles custom surveys not following standard format."""
+    """
+    @brief Handles custom surveys not following standard format with manual intervention.
+    @param page The Playwright page object containing the survey form.
+    @param currently_filling String describing which survey is being filled.
+    @param debug_mode Boolean flag to enable debug output.
+    @return None
+    """
     if debug_mode:
         print("Custom survey detected. Manual intervention required.")
     
@@ -308,7 +358,11 @@ def fill_custom_survey(page, currently_filling, debug_mode: bool):
         page.click(submit_selector)
 
 def fill_demographic_info(page):
-    """Fills demographic questions in course surveys."""
+    """
+    @brief Fills demographic information questions in course evaluation surveys.
+    @param page The Playwright page object containing the demographic form.
+    @return None
+    """
     # Fulltime/Parttime
     page.wait_for_selector("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_0_1_0", timeout=10000)
     page.click("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_0_1_0")

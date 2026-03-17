@@ -15,10 +15,18 @@ ntfy_server = os.getenv("NTFY_SERVER", "")
 download_assignments = int(os.getenv("DOWNLOAD_ASSIGNMENTS", "0"))
 
 def clean_text(text: str) -> str:
+    """
+    @brief Removes extra whitespace from text by collapsing multiple spaces into single spaces.
+    @param text The input string to clean.
+    @return String with normalized whitespace.
+    """
     return " ".join(text.split())
 
 def start_playwright():
-    """Launches browser."""
+    """
+    @brief Launches a headless Chromium browser with optimized settings.
+    @return Browser object with no persistent context.
+    """
     browser = p.chromium.launch(
         headless=True,
         args=[
@@ -42,6 +50,14 @@ def start_playwright():
     return browser
 
 def send_notification(title, message: str, priority: int, file_path: str = ""):
+    """
+    @brief Sends a notification via ntfy.sh service with optional file attachment.
+    @param title The title of the notification.
+    @param message The message body of the notification.
+    @param priority The priority level of the notification (1-5).
+    @param file_path Optional file path to attach to the notification.
+    @return None
+    """
     if ntfy_server and file_path != "":
         requests.put(
             f"https://ntfy.sh/{ntfy_server}",
@@ -61,7 +77,11 @@ def send_notification(title, message: str, priority: int, file_path: str = ""):
         print("ntfy_server is not set. Cannot send notification.")
 
 def check_and_login(page):
-    '''Handles login and cookie persistence.'''
+    """
+    @brief Authenticates user and ensures proper LMS access for assignment retrieval.
+    @param page The Playwright page object to interact with.
+    @return None
+    """
     page.goto("https://cms.bahria.edu.pk/Logins/Student/Login.aspx")
     page.fill("#BodyPH_tbEnrollment", enrollment_number)
     page.fill("#BodyPH_tbPassword", password)
@@ -78,7 +98,15 @@ def check_and_login(page):
         exit(1)
 
 def download_assignment_file(page, subject_name: str, assignment_name: str, deadline_date: str, assignment_link: str) -> str:
-    '''Handles the downloading of an assignment file, creating directories if necessary, and returning the file pattern used to check for duplicates.'''
+    """
+    @brief Downloads an assignment file and saves it in a subject-specific directory.
+    @param page The Playwright page object to interact with.
+    @param subject_name The name of the subject for the assignment.
+    @param assignment_name The name of the assignment.
+    @param deadline_date The deadline date formatted as string.
+    @param assignment_link The URL link to the assignment file.
+    @return The final path of the downloaded assignment file.
+    """
     if not os.path.exists(f"{os.environ.get('HOME')}/{subject_name}"):
         os.makedirs(f"{os.environ.get('HOME')}/{subject_name}")
 
@@ -97,7 +125,11 @@ def download_assignment_file(page, subject_name: str, assignment_name: str, dead
     return final_path
 
 def fetch_assignments(page: Page) -> list:
-    '''Fetches assignments from the LMS and returns assignments with deadlines and patterns of downloaded files so that old assignment files can be cleaned up.'''
+    """
+    @brief Fetches all assignments from the LMS with their deadlines and file paths.
+    @param page The Playwright page object to interact with.
+    @return List of tuples containing assignment number, subject, deadline, submitted status, extended flag, and file path.
+    """
     deadlines = []
     final_path = None
 
@@ -135,6 +167,12 @@ def fetch_assignments(page: Page) -> list:
     return deadlines
 
 def alert_deadline(deadlines: list, ntfy_server: str):
+    """
+    @brief Processes deadlines and sends notifications based on time remaining and notification level.
+    @param deadlines List of tuples containing assignment deadline information.
+    @param ntfy_server The ntfy service name for sending notifications.
+    @return None
+    """
     today = datetime.today().date()
     parsed_deadlines = []
 
@@ -172,10 +210,20 @@ def alert_deadline(deadlines: list, ntfy_server: str):
                     send_notification("Upcoming Assignments", notification, priority, final_path if final_path else "")
 
 def format_number(n):
+    """
+    @brief Formats a number to 2 decimal places, removing trailing zeros and decimal points.
+    @param n The number to format.
+    @return Formatted string representation of the number.
+    """
     return f"{n:.2f}".rstrip('0').rstrip('.')
 
 
 def alert_attendance(subject):
+    """
+    @brief Sends a notification alert when attendance drops below allowed absence limit.
+    @param subject The name of the subject with critical attendance.
+    @return None
+    """
     try:
         response = requests.post(
             f"https://ntfy.sh/{ntfy_server}",
@@ -189,7 +237,12 @@ def alert_attendance(subject):
         print(f"Failed to send notification for {subject}: {e}")
 
 def scrape_attendance(page: Page, debug_mode: bool):
-    """Multiply by 4 so for 1 credit hour course u can be absent for 4 hours, for 2 u can be absent for 8 etc (it works slightly differently for lab because it has 3 contact hours so u can be absent for 12 hours)."""
+    """
+    @brief Extracts and displays attendance statistics for all subjects, alerting if limits are exceeded.
+    @param page The Playwright page object containing attendance data.
+    @param debug_mode Boolean flag to enable debug output.
+    @return None
+    """
     page.goto("https://cms.bahria.edu.pk/Sys/Student/ClassAttendance/StudentWiseAttendance.aspx")
     rows = page.locator("#pageContent > div.container-fluid > div.table-responsive > table > tbody > tr").all()
     for row in rows:
@@ -213,10 +266,10 @@ def scrape_attendance(page: Page, debug_mode: bool):
         absences_remaining = max_absences - float(absences)
 
         if subject.split()[-1] == "Lab":
-            if int(format_number(absences_remaining / (int(credits) * 3))) <= 0:
+            if int(format_number(absences_remaining / (int(credits) * 3))) < 0:
                 alert_attendance(subject)
         else:
-            if int(format_number(absences_remaining / int(credits) * 2)) <= 0:
+            if int(format_number(absences_remaining / int(credits) * 2)) < 0:
                 alert_attendance(subject)
 
 

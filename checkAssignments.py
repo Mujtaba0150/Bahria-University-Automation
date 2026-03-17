@@ -42,13 +42,26 @@ instituition = int(os.getenv("INSTITUTION", "6"))
 check_updates = int(os.getenv("CHECK_UPDATES", "1"))
 
 def clean_text(text: str) -> str:
+    """
+    @brief Removes extra whitespace from text by collapsing multiple spaces into single spaces.
+    @param text The input string to clean.
+    @return String with normalized whitespace.
+    """
     return " ".join(text.split())
 
 def clear_terminal():
+    """
+    @brief Clears the terminal/console screen based on the operating system.
+    @return None
+    """
     command = "cls" if platform.system() == "Windows" else "clear"
     subprocess.run(command, shell=True)
 
 def check_for_updates():
+    """
+    @brief Checks if a new version of the application is available on GitHub.
+    @return None
+    """
     with open(os.path.join(os.path.dirname(__file__), "version.txt"), "r") as f:
         local_version = f.readline().strip()
         f.close()
@@ -66,7 +79,10 @@ def check_for_updates():
         print("Could not check for updates. Please check your internet connection.")
 
 def parse_args():
-    '''Parses command line arguments.'''
+    """
+    @brief Parses command-line arguments for the assignment checker.
+    @return Parsed arguments object with kde, ntfy, download_assignments, whatsapp, and debug options.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("-k", "--kde", action="store", help="Send notifications via KDE Connect using Device ID")
     parser.add_argument("-N", "--ntfy", action="store", help="Send notifications via Ntfy using Server")
@@ -76,7 +92,11 @@ def parse_args():
     return parser.parse_args()
 
 def start_playwright(debug_mode: bool) -> BrowserContext:
-    """Launches persistent browser."""
+    """
+    @brief Launches a persistent Chromium browser with optimized settings.
+    @param debug_mode Boolean flag to launch browser in debug mode (non-headless).
+    @return BrowserContext object representing the persistent browser context.
+    """
     browser = p.chromium.launch_persistent_context(
         user_data_dir=data_dir,
         headless=not debug_mode,
@@ -101,7 +121,12 @@ def start_playwright(debug_mode: bool) -> BrowserContext:
     return browser
 
 def check_and_login(page, debug_mode: bool):
-    '''Handles login and cookie persistence.'''
+    """
+    @brief Handles user login and ensures proper authentication before accessing assignments.
+    @param page The Playwright page object to interact with.
+    @param debug_mode Boolean flag to enable debug output.
+    @return None
+    """
     page.goto("https://lms.bahria.edu.pk/Student/Assignments.php")
     if  ("https://lms.bahria.edu.pk/" in page.url):
         logged_in_enrollment_number = page.locator("body > div > header > nav > div > ul > li.dropdown.user.user-menu > ul > li.user-header > p").text_content().strip()
@@ -139,7 +164,12 @@ def check_and_login(page, debug_mode: bool):
         persist_cookies(browser, debug_mode)
 
 def persist_cookies(browser, debug_mode: bool):
-    '''Makes CMS cookies persistent for a year.'''
+    """
+    @brief Makes CMS cookies persistent for one year to maintain session across restarts.
+    @param browser The BrowserContext object containing the cookies.
+    @param debug_mode Boolean flag to enable debug output.
+    @return None
+    """
     cookies = browser.cookies()
     for cookie in cookies:
         if cookie["name"] in ["cms", "PHPSESSID"]:
@@ -150,19 +180,33 @@ def persist_cookies(browser, debug_mode: bool):
                 print(f"Made {cookie['name']} cookie persistent.")
 
 def run_qa_survey(page, debug_mode: bool):
-            print("Do you want to run the script to fill the survey automatically? (y/n): ", end="")
-            choice = input().strip().lower()
-            if choice == 'y':
-                survey_file_path = os.path.join(os.path.dirname(__file__), "fillSurvey.py")
-                if os.path.exists(survey_file_path):
-                    clear_terminal()
-                    subprocess.run(["python", survey_file_path])
-                else:
-                    print("Survey automation script not found.")
-                    exit(1)
+    """
+    @brief Prompts user to run automated survey filling script.
+    @param page The Playwright page object.
+    @param debug_mode Boolean flag to enable debug output.
+    @return None
+    """
+    print("Do you want to run the script to fill the survey automatically? (y/n): ", end="")
+    choice = input().strip().lower()
+    if choice == 'y':
+        survey_file_path = os.path.join(os.path.dirname(__file__), "fillSurvey.py")
+        if os.path.exists(survey_file_path):
+            clear_terminal()
+            subprocess.run(["python", survey_file_path])
+        else:
+            print("Survey automation script not found.")
+            exit(1)
 
 def download_assignment_file(page, subject_name: str, assignment_name: str, deadline_date: str, assignment_link: str) -> str:
-    '''Handles the downloading of an assignment file, creating directories if necessary, and returning the file pattern used to check for duplicates.'''
+    """
+    @brief Downloads an assignment file and saves it in a subject-specific directory.
+    @param page The Playwright page object to interact with.
+    @param subject_name the name of the subject for the assignment.
+    @param assignment_name The name of the assignment.
+    @param deadline_date The deadline date formatted as string.
+    @param assignment_link The URL link to the assignment file.
+    @return File pattern used to identify downloaded files for cleanup.
+    """
     if not os.path.exists(f"{download_dir}/{subject_name}"):
         os.makedirs(f"{download_dir}/{subject_name}")
 
@@ -185,7 +229,13 @@ def download_assignment_file(page, subject_name: str, assignment_name: str, dead
     return pattern
 
 def cleanup_old_files(download_dir: str, patterns: list, debug_mode: bool):
-    '''Delete all files and folders in download_dir that are not matched by any pattern.'''
+    """
+    @brief Deletes old assignment files not matching current download patterns.
+    @param download_dir The root directory containing downloaded assignments.
+    @param patterns List of file patterns to keep during cleanup.
+    @param debug_mode Boolean flag to enable debug output.
+    @return None
+    """
     all_files = glob.glob(f"{download_dir}/**/*", recursive=True)
     keep_files = set()
     
@@ -220,6 +270,14 @@ def cleanup_old_files(download_dir: str, patterns: list, debug_mode: bool):
                     print(f"Error deleting directory {full_path}: {e}")
 
 def send_notification(title, message: str, priority: int, ntfy_server: str):
+    """
+    @brief Sends a notification via ntfy.sh service.
+    @param title The title of the notification.
+    @param message The message body of the notification.
+    @param priority The priority level of the notification (1-5).
+    @param ntfy_server The ntfy server name/topic to send the notification to.
+    @return None
+    """
     if ntfy_server:
         requests.put(
             f"https://ntfy.sh/{ntfy_server}",
@@ -230,7 +288,13 @@ def send_notification(title, message: str, priority: int, ntfy_server: str):
         print("ntfy_server is not set. Cannot send notification.")
 
 def fetch_assignments(page: Page, download_assignments:bool, debug_mode: bool) -> tuple[list, list]:
-    '''Fetches assignments from the LMS and returns assignments with deadlines and patterns of downloaded files so that old assignment files can be cleaned up.'''
+    """
+    @brief Fetches all assignments from the LMS and optionally downloads them.
+    @param page The Playwright page object to interact with.
+    @param download_assignments Boolean flag to download assignment files.
+    @param debug_mode Boolean flag to enable debug output.
+    @return Tuple of (deadlines list, patterns list for file cleanup).
+    """
     deadlines = []
     patterns = []
 
@@ -268,6 +332,11 @@ def fetch_assignments(page: Page, download_assignments:bool, debug_mode: bool) -
     return deadlines, patterns
 
 def display_whatsapp_formatted_deadlines(deadlines: list):
+    """
+    @brief Formats and displays assignment deadlines in WhatsApp-friendly format.
+    @param deadlines List of tuples containing deadline information.
+    @return None
+    """
     formatted_deadlines = []
     for subject, date, _ in deadlines:
         short_subject = subject_abbreviations.get(subject, subject)
@@ -289,6 +358,13 @@ def display_whatsapp_formatted_deadlines(deadlines: list):
         print(f"{subject} - {formatted_date}")
 
 def display_deadlines(deadlines: list, KDE_device: str, ntfy_server: str):
+    """
+    @brief Displays and processes assignment deadlines with color coding and notifications.
+    @param deadlines List of tuples containing deadline information.
+    @param KDE_device KDE Connect device ID for notifications.
+    @param ntfy_server Ntfy service name for notifications.
+    @return None
+    """
     today = datetime.today().date()
     parsed_deadlines = []
 
@@ -334,11 +410,8 @@ def display_deadlines(deadlines: list, KDE_device: str, ntfy_server: str):
                 )
                 target.append(colored)
 
-                if (KDE_device or ntfy_server) and days_left <= max_days_for_notification:
-                    if not submitted or (notify_extended and extended):
-                        break
+                if (KDE_device or ntfy_server) and (days_left <= max_days_for_notification) and not submitted or (notify_extended and extended):
                     notifications.append((notification_message, days_left, priority, submitted, extended))
-                break
 
     sections = [
         ("=== Due Today ===", due_today),
