@@ -22,7 +22,7 @@ jobs:
           pip install playwright requests python-dotenv
           playwright install --with-deps chromium
       
-      - name: Run Assignments Script
+      - name: Run Script
         env:
           ENROLLMENT_NUMBER: ${{ secrets.ENROLLMENT_NUMBER }}
           PASSWORD: ${{ secrets.PASSWORD }}
@@ -33,17 +33,4 @@ jobs:
           DOWNLOAD_ASSIGNMENTS: ${{ secrets.DOWNLOAD_ASSIGNMENTS || '0' }}
         
         run: |
-          python githubActions.py 
-      
-      - name: Run Attendance Script
-        env:
-          ENROLLMENT_NUMBER: ${{ secrets.ENROLLMENT_NUMBER }}
-          PASSWORD: ${{ secrets.PASSWORD }}
-          NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
-          NOTIFICATION_LEVEL: ${{ secrets.NOTIFICATION_LEVEL || '0' }}
-          NOTIFY_EXTENDED: ${{ secrets.NOTIFY_EXTENDED || '1' }}
-          INSTITUTION: ${{ secrets.INSTITUTION || '6' }}
-          DOWNLOAD_ASSIGNMENTS: ${{ secrets.DOWNLOAD_ASSIGNMENTS || '0' }}
-        
-        run: |
-          python checkAttendance.py
+          python githubActions.py

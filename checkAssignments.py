@@ -382,7 +382,7 @@ if __name__ == "__main__":
         try:
             with sync_playwright() as p:
                 browser = start_playwright(args.debug)
-                page = browser.pages[0]
+                page = browser.new_page()
                 # sleep(2000000)
                 check_and_login(page, args.debug)
                 deadlines, patterns = fetch_assignments(page, args.download_assignments, args.debug)

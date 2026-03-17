@@ -20,7 +20,7 @@ def clean_text(text: str) -> str:
 def start_playwright():
     """Launches browser."""
     browser = p.chromium.launch(
-        headless=False,
+        headless=True,
         args=[
             "--window-size=1920,1080",
             "--disable-gpu",
@@ -62,36 +62,20 @@ def send_notification(title, message: str, priority: int, file_path: str = ""):
 
 def check_and_login(page):
     '''Handles login and cookie persistence.'''
-    page.goto("https://lms.bahria.edu.pk/Student/Assignments.php")
-    if  ("https://lms.bahria.edu.pk/" in page.url):
-        logged_in_enrollment_number = page.locator("body > div > header > nav > div > ul > li.dropdown.user.user-menu > ul > li.user-header > p").text_content().strip()
-        if enrollment_number not in logged_in_enrollment_number:
-            page.click("body > div > header > nav > div > ul > li.dropdown.user.user-menu")
-            page.click("body > div > header > nav > div > ul > li.dropdown.user.user-menu.open > ul > li.user-footer > div.pull-right")
-            if "Dashboard.aspx" in page.url:
-                page.click("#AccountsNavbar > ul")
-                page.click("#ProfileInfo_hlLogoff")
-            check_and_login(page)
-        else:
-            print(f"Logged in as {enrollment_number}")
-
-    else:
-        page.goto("https://cms.bahria.edu.pk/Logins/Student/Login.aspx")
-        if "Login.aspx" in page.url:
-                page.goto("https://cms.bahria.edu.pk/Logins/Student/Login.aspx")
-                page.fill("#BodyPH_tbEnrollment", enrollment_number)
-                page.fill("#BodyPH_tbPassword", password)
-                page.select_option("#BodyPH_ddlInstituteID", "1")
-                page.click(f"#pageContent > div.container-fluid > div.row > div > div:nth-child({instituition})")
-
-                print(f"Logged in as {enrollment_number}")
-                lms_button = page.wait_for_selector("#sideMenuList > a:nth-child(16)")
-                page.evaluate("el => el.removeAttribute('target')", lms_button)
-                lms_button.click()
-
-        elif ("QualityAssuranceSurveys.aspx" in page.url):
-            print("Please complete the Quality Assurance Survey to proceed.")   
-            send_notification("Error" ,"Please complete the Quality Assurance Survey to proceed.", 2)
+    page.goto("https://cms.bahria.edu.pk/Logins/Student/Login.aspx")
+    page.fill("#BodyPH_tbEnrollment", enrollment_number)
+    page.fill("#BodyPH_tbPassword", password)
+    page.select_option("#BodyPH_ddlInstituteID", "1")
+    page.click(f"#pageContent > div.container-fluid > div.row > div > div:nth-child({instituition})")
+    print(f"Logged in as {enrollment_number}")
+    lms_button = page.wait_for_selector("#sideMenuList > a:nth-child(16)")
+    page.evaluate("el => el.removeAttribute('target')", lms_button)
+    lms_button.click()
+    
+    if ("QualityAssuranceSurveys.aspx" in page.url):
+        print("Please complete the Quality Assurance Survey to proceed.")   
+        send_notification("Error" ,"Please complete the Quality Assurance Survey to proceed.", 2)
+        exit(1)
 
 def download_assignment_file(page, subject_name: str, assignment_name: str, deadline_date: str, assignment_link: str) -> str:
     '''Handles the downloading of an assignment file, creating directories if necessary, and returning the file pattern used to check for duplicates.'''
@@ -187,6 +171,55 @@ def alert_deadline(deadlines: list, ntfy_server: str):
                 else:
                     send_notification("Upcoming Assignments", notification, priority, final_path if final_path else "")
 
+def format_number(n):
+    return f"{n:.2f}".rstrip('0').rstrip('.')
+
+
+def alert_attendance(subject):
+    try:
+        response = requests.post(
+            f"https://ntfy.sh/{ntfy_server}",
+            data=f"Your attendance for {subject} has exceeded the allowed absence limit.",
+            headers={"Title": f"Attendance Alert: {subject}", "Priority": "5"},
+            timeout=5
+        )
+        response.raise_for_status()
+        print(f"Notification sent for {subject}")
+    except requests.RequestException as e:
+        print(f"Failed to send notification for {subject}: {e}")
+
+def scrape_attendance(page: Page, debug_mode: bool):
+    """Multiply by 4 so for 1 credit hour course u can be absent for 4 hours, for 2 u can be absent for 8 etc (it works slightly differently for lab because it has 3 contact hours so u can be absent for 12 hours)."""
+    page.goto("https://cms.bahria.edu.pk/Sys/Student/ClassAttendance/StudentWiseAttendance.aspx")
+    rows = page.locator("#pageContent > div.container-fluid > div.table-responsive > table > tbody > tr").all()
+    for row in rows:
+        cells = row.locator("td").all()
+        subject = cells[2].inner_text().strip()
+        credits = cells[3].inner_text().strip()
+        absences = cells[10].inner_text().strip()
+
+        if debug_mode:
+            print(f"Processing subject: {subject}, Credits: {credits}, Absences: {absences}")
+
+        if credits == "0":
+            credits = "1"
+            if debug_mode:
+                print(f"Credits for {subject} was 0, setting to 1 to avoid division by zero.")
+
+        if(subject.split()[-1] == "Lab"):
+            max_absences = int(credits) * 12
+        else:
+            max_absences = int(credits) * 4
+        absences_remaining = max_absences - float(absences)
+
+        if subject.split()[-1] == "Lab":
+            if int(format_number(absences_remaining / (int(credits) * 3))) <= 0:
+                alert_attendance(subject)
+        else:
+            if int(format_number(absences_remaining / int(credits) * 2)) <= 0:
+                alert_attendance(subject)
+
+
 if __name__ == "__main__":
     try:
         if enrollment_number == "" or password == "" or notification_level < 0 or notification_level > 4 or ntfy_server == "":
@@ -213,6 +246,8 @@ if __name__ == "__main__":
             check_and_login(page)
             deadlines = fetch_assignments(page)
             alert_deadline(deadlines, ntfy_server)
+            scrape_attendance(page, debug_mode=False)
+            
             browser.close()
     except Exception as e:
         print(f"Error during automation: {str(e)}")
