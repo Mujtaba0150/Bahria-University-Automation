@@ -209,6 +209,7 @@ def alert_deadline(deadlines: list, ntfy_server: str):
                     send_notification("Assignment Due in Next 14 Days", notification, priority, final_path if final_path else "")
                 else:
                     send_notification("Upcoming Assignments", notification, priority, final_path if final_path else "")
+                sleep(0.1) # Sleep to ensure notifications are sent in order
 
 def format_number(n):
     """
