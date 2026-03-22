@@ -133,6 +133,7 @@ def fetch_assignments(page: Page) -> list:
     deadlines = []
     final_path = None
 
+    page.wait_for_selector("body > div > aside > section > ul > li:nth-child(5)")
     page.click("body > div > aside > section > ul > li:nth-child(5)")
     subjects_list = page.locator("#courseId option").all()
     subjects = [(i, clean_text(s.inner_text())) for i, s in enumerate(subjects_list)]
@@ -181,7 +182,7 @@ def alert_deadline(deadlines: list, ntfy_server: str):
         days_left = (deadline_date - today).days
         parsed_deadlines.append((assignment_number, subject, deadline_date, days_left, submitted, extended, final_path))
 
-    parsed_deadlines.sort(key=lambda x: x[3])
+    parsed_deadlines.sort(key=lambda x: x[3], reverse=True)
 
     level_to_max_days = {0: 0, 1: 4, 2: 7, 3: 14, 4: float("inf")}
     max_days_for_notification = level_to_max_days.get(notification_level, 0)
@@ -303,7 +304,14 @@ if __name__ == "__main__":
             
             browser.close()
     except Exception as e:
-        print(f"Error during automation: {str(e)}")
-        send_notification("Error", f"Error during automation: {str(e)}", 1)
+        error_message = str(e)
+
+        if e == TimeoutError:
+            print("Operation timed out. The LMS or CMS might be down or unresponsive.")
+            send_notification("Timeout Error", f"Operation timed out. The LMS or CMS might be down or unresponsive.\nError Details: {str(e)}", 4)
+        else:
+            print(f"Error during automation: {str(e)}")
+            send_notification("Error", f"Error during automation: {str(e)}", 4)
+        exit(1)
     finally:
         exit(0)
