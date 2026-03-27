@@ -3,6 +3,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from time import sleep
 import requests
+import json
 import os
 
 load_dotenv()
@@ -167,6 +168,36 @@ def fetch_assignments(page: Page) -> list:
                     deadlines.append((assignment_number, subject_name, deadline_date, submitted, extended, final_path if download_assignments else None))
     return deadlines
 
+def fetch_cached_notifications(ntfy_server: str) -> list:
+    cached_notifications = []
+
+    titles = [
+        "Assignment+Due+Today",
+        "Assignment+Due+in+Next+4+Days",
+        "Assignment+Due+in+Next+7+Days",
+        "Assignment+Due+in+Next+14+Days",
+        "Upcoming+Assignments"
+    ]
+
+    for title in titles:
+        if ntfy_server:
+            response = requests.get(f"https://ntfy.sh/{ntfy_server}/json?poll=1&title={title}")
+            lines = response.text.splitlines()
+
+            for line in lines:
+                if line.strip():
+                    data = json.loads(line)
+                    cached_notifications.append({
+                        "id": data["id"],
+                        "message": data["message"]
+                    })
+    return cached_notifications
+
+def delete_cached_notification(ntfy_server: str, message: str, cached_notifications: list):
+    for notification in cached_notifications:
+        if notification["message"] == message.strip():
+            requests.delete(f"https://ntfy.sh/{ntfy_server}/{notification['id']}")
+
 def alert_deadline(deadlines: list, ntfy_server: str):
     """
     @brief Processes deadlines and sends notifications based on time remaining and notification level.
@@ -197,17 +228,24 @@ def alert_deadline(deadlines: list, ntfy_server: str):
             priority = 5 if days_left == 0 else 4 if days_left <= 4 else 3
             notifications.append((notification_message, days_left, priority, submitted, extended, final_path))
 
+    cached_notifications = fetch_cached_notifications(ntfy_server)
+
     for notification, days_left, priority, submitted, extended, final_path in notifications:
             if ntfy_server and (not submitted or (notify_extended and extended)):
                 if days_left == 0:
+                    delete_cached_notification(ntfy_server, notification, cached_notifications)
                     send_notification("Assignment Due Today", notification, priority, final_path if final_path else "")
                 elif days_left <= 4:
+                    delete_cached_notification(ntfy_server, notification, cached_notifications)
                     send_notification("Assignment Due in Next 4 Days", notification, priority, final_path if final_path else "")
                 elif days_left <= 7:
+                    delete_cached_notification(ntfy_server, notification, cached_notifications)
                     send_notification("Assignment Due in Next 7 Days", notification, priority, final_path if final_path else "")
                 elif days_left <= 14:
+                    delete_cached_notification(ntfy_server, notification, cached_notifications)
                     send_notification("Assignment Due in Next 14 Days", notification, priority, final_path if final_path else "")
                 else:
+                    delete_cached_notification(ntfy_server, notification, cached_notifications)
                     send_notification("Upcoming Assignments", notification, priority, final_path if final_path else "")
                 sleep(0.1) # Sleep to ensure notifications are sent in order
 
@@ -297,6 +335,7 @@ if __name__ == "__main__":
             context = browser.new_context(viewport={'width': 1920, 'height': 1080})
             page = context.new_page()
             
+            page.set_default_timeout(60000)
             # sleep(2000000)
             check_and_login(page)
             deadlines = fetch_assignments(page)
