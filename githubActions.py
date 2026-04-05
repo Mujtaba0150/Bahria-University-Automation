@@ -41,8 +41,12 @@ def start_playwright():
             "--disable-blink-features=AutomationControlled",
             "--disable-logging",
             "--log-level=3",
-            "--disable-features=Translate,BackForwardCache,RendererCodeIntegrity,IsolateOrigins,site-per-process",
             "--blink-settings=imagesEnabled=false",
+            "--disable-component-update",
+            "--disable-background-networking",
+            "--disable-sync",
+            "--disable-lazy-image-loading",
+            "--disable-features=Translate,RendererCodeIntegrity,IsolateOrigins,site-per-process",
             "--disable-animations",
             "--mute-audio"
         ]
@@ -88,6 +92,7 @@ def check_and_login(page):
     page.fill("#BodyPH_tbPassword", password)
     page.select_option("#BodyPH_ddlInstituteID", "1")
     page.click(f"#pageContent > div.container-fluid > div.row > div > div:nth-child({instituition})")
+    page.click("#BodyPH_btnLogin")
     print(f"Logged in as {enrollment_number}")
     lms_button = page.wait_for_selector("#sideMenuList > a:nth-child(16)")
     page.evaluate("el => el.removeAttribute('target')", lms_button)
@@ -132,40 +137,81 @@ def fetch_assignments(page: Page) -> list:
     @return List of tuples containing assignment number, subject, deadline, submitted status, extended flag, and file path.
     """
     deadlines = []
-    final_path = None
+    
+    # Navigate to Assignments page if not already there
+    if "Assignments.php" not in page.url:
+        page.goto("https://lms.bahria.edu.pk/Student/Assignments.php", wait_until="commit")
 
-    page.wait_for_selector("body > div > aside > section > ul > li:nth-child(5)")
-    page.click("body > div > aside > section > ul > li:nth-child(5)")
-    subjects_list = page.locator("#courseId option").all()
-    subjects = [(i, clean_text(s.inner_text())) for i, s in enumerate(subjects_list)]
+    # Extract subject options directly from the dropdown
+    subjects = page.evaluate("""() => {
+        return Array.from(document.querySelectorAll('#courseId option'))
+            .filter(opt => opt.value !== "")
+            .map(opt => ({ id: opt.value, name: opt.innerText.trim() }));
+    }""")
 
-    for index, subject_name in subjects:
-        page.select_option("#courseId", index=index)
-        page.wait_for_selector("table.table-hover tbody tr")
-        rows = page.locator("table.table-hover tbody tr").all()[1:]
+    for course in subjects:
+        # Select the subject via its ID value
+        page.select_option("#courseId", value=course['id'])
+        
+        # Wait for the table to refresh for the specific subject
+        try:
+            page.wait_for_selector("table.table-hover tbody tr:not(:first-child)", timeout=5000)
+        except:
+            # If no assignments are found for this subject, skip to next
+            continue
 
-        for row in rows:
-            cells = row.locator("td").all()
-
-            if len(cells) < 8:
-                continue
-            action_col = cells[6].text_content()
-
-            if "Submit" in action_col or "Delete" in action_col: # pyright: ignore[reportOperatorIssue]
-                deadline_col = cells[7].locator("small")
-                deadline_title = deadline_col.first.get_attribute("title") or ""
-                extended = "Extended" in deadline_title
-                submitted = "Delete" in action_col # pyright: ignore[reportOperatorIssue]
-                assignment_number = cells[0].text_content().strip() # pyright: ignore[reportOptionalMemberAccess]
-                assignment_name = cells[1].text_content().strip() # pyright: ignore[reportOptionalMemberAccess]
-                deadline_date = deadline_col.first.text_content().split('-')[0].strip() # pyright: ignore[reportOptionalMemberAccess]
-
-                if download_assignments:
-                    assignment_link = f"https://lms.bahria.edu.pk/Student/{cells[2].first.locator('a').first.get_attribute('href')}"
-                    final_path = download_assignment_file(page, subject_name, assignment_name, deadline_date, assignment_link)
+        # Extract table data using browser-side execution for speed and reliability
+        table_data = page.evaluate("""() => {
+            const rows = Array.from(document.querySelectorAll("table.table-hover tbody tr")).slice(1);
+            return rows.map(row => {
+                const cells = row.querySelectorAll("td");
+                if (cells.length < 8) return null;
                 
-                if deadline_date:
-                    deadlines.append((assignment_number, subject_name, deadline_date, submitted, extended, final_path if download_assignments else None))
+                const deadlineSmall = cells[7].querySelector("small");
+                return {
+                    action: cells[6].innerText,
+                    assignment_number: cells[0].innerText.trim(),
+                    assignment_name: cells[1].innerText.trim(),
+                    deadline_text: deadlineSmall ? deadlineSmall.innerText : "",
+                    deadline_title: deadlineSmall ? deadlineSmall.getAttribute("title") : "",
+                    download_url: cells[2].querySelector("a") ? cells[2].querySelector("a").getAttribute("href") : ""
+                };
+            }).filter(item => item !== null);
+        }""")
+
+        for item in table_data:
+            # Check if assignment is active (Submit or Delete present)
+            if "Submit" in item['action'] or "Delete" in item['action']:
+                # Extract date (ignoring time/days left suffix)
+                deadline_date = item['deadline_text'].split('-')[0].strip()
+                if not deadline_date:
+                    continue
+
+                final_path = None
+                is_submitted = "Delete" in item['action']
+                is_extended = "Extended" in item['deadline_title']
+
+                # Handle file downloading if enabled
+                if download_assignments and item['download_url']:
+                    assignment_link = f"https://lms.bahria.edu.pk/Student/{item['download_url']}"
+                    # Re-use the existing download helper
+                    final_path = download_assignment_file(
+                        page, 
+                        course['name'], 
+                        item['assignment_name'], 
+                        deadline_date, 
+                        assignment_link
+                    )
+                
+                deadlines.append((
+                    item['assignment_number'], 
+                    course['name'], 
+                    deadline_date, 
+                    is_submitted, 
+                    is_extended, 
+                    final_path if download_assignments else None
+                ))
+
     return deadlines
 
 def fetch_cached_notifications(ntfy_server: str) -> list:
@@ -276,7 +322,7 @@ def alert_attendance(subject):
     except requests.RequestException as e:
         print(f"Failed to send notification for {subject}: {e}")
 
-def scrape_attendance(page: Page, debug_mode: bool):
+def scrape_and_alert_attendance(page: Page, debug_mode: bool):
     """
     @brief Extracts and displays attendance statistics for all subjects, alerting if limits are exceeded.
     @param page The Playwright page object containing attendance data.
@@ -333,6 +379,13 @@ if __name__ == "__main__":
             browser = start_playwright()
             
             context = browser.new_context(viewport={'width': 1920, 'height': 1080})
+            context.route("**/*", lambda route: 
+                route.abort() if route.request.resource_type in ["image", "media", "font", "stylesheet"]
+                or route.request.resource_type == "script" and not (route.request.url.startswith("https://cms.bahria.edu.pk/"))
+                or "google-analytics" in route.request.url 
+                or "fontawesome" in route.request.url
+                else route.continue_()
+            )
             page = context.new_page()
             
             page.set_default_timeout(60000)
@@ -340,7 +393,7 @@ if __name__ == "__main__":
             check_and_login(page)
             deadlines = fetch_assignments(page)
             alert_deadline(deadlines, ntfy_server)
-            scrape_attendance(page, debug_mode=False)
+            scrape_and_alert_attendance(page, debug_mode=False)
             
             browser.close()
     except Exception as e:

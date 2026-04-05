@@ -108,16 +108,30 @@ def start_playwright(debug_mode: bool) -> BrowserContext:
             "--disable-infobars",
             "--disable-dev-shm-usage",
             "--no-sandbox",
+            "--blink-settings=imagesEnabled=false",
+            "--disable-component-update",
+            "--disable-background-networking",
+            "--disable-sync",
+            "--disable-lazy-image-loading",
             "--disable-blink-features=AutomationControlled",
             "--disable-logging",
             "--log-level=3",
-            "--disable-features=Translate,BackForwardCache,RendererCodeIntegrity,IsolateOrigins,site-per-process",
-            "--blink-settings=imagesEnabled=false",
+            f"--disk-cache-dir={data_dir}/playwrightCache",
+            "--disk-cache-size=1073741824",
+            "--disable-features=Translate,RendererCodeIntegrity,IsolateOrigins,site-per-process",
             "--disable-animations",
             "--mute-audio"
         ]
     )
-
+    
+    browser.route("**/*", lambda route: 
+        route.abort() if route.request.resource_type in ["image", "media", "font", "stylesheet"]
+        or route.request.resource_type == "script" and not (route.request.url.startswith("https://cms.bahria.edu.pk/"))
+        or "google-analytics" in route.request.url 
+        or "fontawesome" in route.request.url
+        else route.continue_()
+    )
+    
     return browser
 
 def check_and_login(page, debug_mode: bool):
@@ -127,18 +141,15 @@ def check_and_login(page, debug_mode: bool):
     @param debug_mode Boolean flag to enable debug output.
     @return None
     """
-    page.goto("https://lms.bahria.edu.pk/Student/Assignments.php")
+    page.goto("https://lms.bahria.edu.pk/Student/Assignments.php", wait_until="commit")
     if  ("https://lms.bahria.edu.pk/" in page.url):
         logged_in_enrollment_number = page.locator("body > div > header > nav > div > ul > li.dropdown.user.user-menu > ul > li.user-header > p").text_content().strip()
         if enrollment_number not in logged_in_enrollment_number:
             if debug_mode:
                 print("Logged in with a different account. Logging out...")
 
-            page.click("body > div > header > nav > div > ul > li.dropdown.user.user-menu")
-            page.click("body > div > header > nav > div > ul > li.dropdown.user.user-menu.open > ul > li.user-footer > div.pull-right")
-            if "Dashboard.aspx" in page.url:
-                page.click("#AccountsNavbar > ul")
-                page.click("#ProfileInfo_hlLogoff")
+            page.goto("https://lms.bahria.edu.pk/Student/includes/studentprocess.php?s=signout", wait_until="commit")
+            page.goto("https://cms.bahria.edu.pk/Sys/Student/Logoff.aspx", wait_until="commit")
             check_and_login(page, debug_mode)
         else:
             print(f"Logged in as {enrollment_number}")
@@ -151,7 +162,7 @@ def check_and_login(page, debug_mode: bool):
                 page.fill("#BodyPH_tbPassword", password)
                 page.select_option("#BodyPH_ddlInstituteID", "1")
                 page.click(f"#pageContent > div.container-fluid > div.row > div > div:nth-child({instituition})")
-
+                page.click("#BodyPH_btnLogin")
                 print(f"Logged in as {enrollment_number}")
                 lms_button = page.wait_for_selector("#sideMenuList > a:nth-child(16)")
                 page.evaluate("el => el.removeAttribute('target')", lms_button)
@@ -160,6 +171,12 @@ def check_and_login(page, debug_mode: bool):
         elif ("QualityAssuranceSurveys.aspx" in page.url):
             print("Please complete the Quality Assurance Survey to proceed.")   
             run_qa_survey(page, debug_mode)
+        
+        else:
+            print(f"Logged in as {enrollment_number}")
+            lms_button = page.wait_for_selector("#sideMenuList > a:nth-child(16)")
+            page.evaluate("el => el.removeAttribute('target')", lms_button)
+            lms_button.click()
 
         persist_cookies(browser, debug_mode)
 
@@ -287,47 +304,56 @@ def send_notification(title, message: str, priority: int, ntfy_server: str):
     else:
         print("ntfy_server is not set. Cannot send notification.")
 
-def fetch_assignments(page: Page, download_assignments:bool, debug_mode: bool) -> tuple[list, list]:
-    """
-    @brief Fetches all assignments from the LMS and optionally downloads them.
-    @param page The Playwright page object to interact with.
-    @param download_assignments Boolean flag to download assignment files.
-    @param debug_mode Boolean flag to enable debug output.
-    @return Tuple of (deadlines list, patterns list for file cleanup).
-    """
+def fetch_assignments(page: Page, download_assignments: bool, debug_mode: bool) -> tuple[list, list]:
     deadlines = []
     patterns = []
+    if "Assignments.php" not in page.url:
+        page.goto("https://lms.bahria.edu.pk/Student/Assignments.php", wait_until="networkidle")
 
-    page.click("body > div > aside > section > ul > li:nth-child(5)")
-    subjects_list = page.locator("#courseId option").all()
-    subjects = [(i, clean_text(s.inner_text())) for i, s in enumerate(subjects_list)]
+    # Extract courses and values
+    courses = page.evaluate("""() => {
+        return Array.from(document.querySelectorAll('#courseId option'))
+            .filter(opt => opt.value !== "")
+            .map(opt => ({ id: opt.value, name: opt.innerText.trim() }));
+    }""")
 
-    for index, subject_name in subjects:
-        page.select_option("#courseId", index=index)
-        page.wait_for_selector("table.table-hover tbody tr")
-        rows = page.locator("table.table-hover tbody tr").all()[1:]
-        for row in rows:
-            cells = row.locator("td").all()
-            if len(cells) < 8:
-                continue
-            action_col = cells[6].text_content()
+    for course in courses:
+        page.select_option("#courseId", value=course['id'])
+        
+        page.wait_for_selector("table.table-hover tbody tr:not(:first-child)", timeout=5000)
 
-            if "Submit" in action_col or "Delete" in action_col: # pyright: ignore[reportOperatorIssue]
-                deadline_col = cells[7].locator("small")
-                deadline_title = deadline_col.first.get_attribute("title") or ""
-                extended = "Extended" in deadline_title
-                submitted = "Delete" in action_col # pyright: ignore[reportOperatorIssue]
-                assignment_number = cells[0].text_content().strip() # pyright: ignore[reportOptionalMemberAccess]
-                assignment_name = cells[1].text_content().strip() # pyright: ignore[reportOptionalMemberAccess]
-                deadline_date = deadline_col.first.text_content().split('-')[0].strip() # pyright: ignore[reportOptionalMemberAccess]
+        table_data = page.evaluate("""() => {
+            const rows = Array.from(document.querySelectorAll("table.table-hover tbody tr")).slice(1);
+            return rows.map(row => {
+                const cells = row.querySelectorAll("td");
+                if (cells.length < 8) return null;
+                return {
+                    action: cells[6].innerText,
+                    assignment_number: cells[0].innerText.trim(),
+                    assignment_name: cells[1].innerText.trim(),
+                    deadline_text: cells[7].querySelector("small")?.innerText || "",
+                    deadline_title: cells[7].querySelector("small")?.getAttribute("title") || "",
+                    download_url: cells[2].querySelector("a")?.getAttribute("href") || ""
+                };
+            }).filter(item => item !== null);
+        }""")
 
-                if download_assignments:
-                    assignment_link = f"https://lms.bahria.edu.pk/Student/{cells[2].first.locator('a').first.get_attribute('href')}"
-                    pattern = download_assignment_file(page, subject_name, assignment_name, deadline_date, assignment_link) # pyright: ignore[reportArgumentType]
-                    patterns.append(pattern)
+        for item in table_data:
+            if "Submit" in item['action'] or "Delete" in item['action']:
+                deadline_date = item['deadline_text'].split('-')[0].strip()
+                if not deadline_date: continue
+
+                if download_assignments and item['download_url']:
+                    link = f"https://lms.bahria.edu.pk/Student/{item['download_url']}"
+                    patterns.append(download_assignment_file(page, course['name'], item['assignment_name'], deadline_date, link))
                 
-                if deadline_date:
-                    deadlines.append((assignment_number, subject_name, deadline_date, submitted, extended))
+                deadlines.append((
+                    item['assignment_number'], 
+                    course['name'], 
+                    deadline_date, 
+                    "Delete" in item['action'], 
+                    "Extended" in item['deadline_title']
+                ))
 
     return deadlines, patterns
 
@@ -455,8 +481,8 @@ if __name__ == "__main__":
         try:
             with sync_playwright() as p:
                 browser = start_playwright(args.debug)
-                page = browser.new_page()
-                # sleep(2000000)
+                page = browser.pages[0]
+                page.set_default_timeout(60000)
                 check_and_login(page, args.debug)
                 deadlines, patterns = fetch_assignments(page, args.download_assignments, args.debug)
                 browser.close()
