@@ -96,6 +96,7 @@ def start_playwright(debug_mode: bool) -> BrowserContext:
     browser = p.chromium.launch_persistent_context(
         user_data_dir=data_dir,
         headless=not debug_mode,
+        no_viewport=True,
         args=[
             "--window-size=1920,1080",
             "--disable-gpu",
@@ -149,7 +150,7 @@ def scrape_attendance(page: Page, debug_mode: bool):
                 print(f"\033[1;97m{subject}\033[0m: \033[1;91m{format_number(absences_remaining / (int(credits) * 3))}/{int(max_absences / (int(credits) * 3))}\033[0m")
             else:
                 print(f"\033[1;97m{subject}\033[0m: {format_number(absences_remaining / (int(credits) * 3))}/{int(max_absences / (int(credits) * 3))}")
-        
+
         else:
             if int(format_number(absences_remaining / int(credits) * 2)) <= 2:
                 print(f"\033[1;97m{subject}\033[0m: \033[1;91m{format_number((absences_remaining / int(credits) * 2))}/{int(max_absences / int(credits) * 2)}\033[0m")
@@ -212,7 +213,7 @@ if __name__ == "__main__":
                 except Exception as inner_e:
                     print(f"Failed to save debug info: {inner_e}")
             exit(1)
-        
+
         if check_updates:
             check_for_updates()
     except Exception as e:

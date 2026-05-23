@@ -1,4 +1,4 @@
-from playwright.sync_api import sync_playwright, BrowserContext, Page, TimeoutError
+from playwright.sync_api import Locator, sync_playwright, BrowserContext, Page, TimeoutError
 from datetime import datetime
 from dotenv import load_dotenv
 from time import sleep
@@ -89,17 +89,20 @@ def parse_args():
     parser.add_argument("-n", action="store_false", dest="download_assignments", help="Don't download assignments")
     parser.add_argument("-w", "--whatsapp", action="store_true", help="Format for WhatsApp Message")
     parser.add_argument("-d", "--debug", action="store_true", help="Enable debug mode")
+    parser.add_argument("-l", "--login", action="store_true", help="Enable login mode")
     return parser.parse_args()
 
-def start_playwright(debug_mode: bool) -> BrowserContext:
+def start_playwright(debug_mode: bool, login_mode: bool) -> BrowserContext:
     """
     @brief Launches a persistent Chromium browser with optimized settings.
     @param debug_mode Boolean flag to launch browser in debug mode (non-headless).
+    @param login_mode Boolean flag to indicate if login is required.
     @return BrowserContext object representing the persistent browser context.
     """
     browser = p.chromium.launch_persistent_context(
         user_data_dir=data_dir,
-        headless=not debug_mode,
+        headless=login_mode or not debug_mode,
+        no_viewport=True,
         args=[
             "--window-size=1920,1080",
             "--disable-gpu",
@@ -123,68 +126,87 @@ def start_playwright(debug_mode: bool) -> BrowserContext:
             "--mute-audio"
         ]
     )
-    
-    browser.route("**/*", lambda route: 
+
+    browser.route("**/*", lambda route:
         route.abort() if route.request.resource_type in ["image", "media", "font", "stylesheet"]
         or route.request.resource_type == "script" and not (route.request.url.startswith("https://cms.bahria.edu.pk/"))
-        or "google-analytics" in route.request.url 
+        or "google-analytics" in route.request.url
         or "fontawesome" in route.request.url
         else route.continue_()
     )
-    
+
     return browser
 
-def check_and_login(page, debug_mode: bool):
+def check_and_login(page: Page, debug_mode: bool, login_mode: bool):
     """
     @brief Handles user login and ensures proper authentication before accessing assignments.
     @param page The Playwright page object to interact with.
     @param debug_mode Boolean flag to enable debug output.
+    @param login_mode Boolean flag to indicate if login is required.
     @return None
     """
     page.goto("https://lms.bahria.edu.pk/Student/Assignments.php", wait_until="commit")
+
     if  ("https://lms.bahria.edu.pk/" in page.url):
-        logged_in_enrollment_number = page.locator("body > div > header > nav > div > ul > li.dropdown.user.user-menu > ul > li.user-header > p").text_content().strip()
+        logged_in_enrollment_number: str = page.locator("body > div > header > nav > div > ul > li.dropdown.user.user-menu > ul > li.user-header > p").text_content().strip()
         if enrollment_number not in logged_in_enrollment_number:
             if debug_mode:
                 print("Logged in with a different account. Logging out...")
 
             page.goto("https://lms.bahria.edu.pk/Student/includes/studentprocess.php?s=signout", wait_until="commit")
             page.goto("https://cms.bahria.edu.pk/Sys/Student/Logoff.aspx", wait_until="commit")
-            check_and_login(page, debug_mode)
+            check_and_login(page, debug_mode, login_mode)
+            return
         else:
             print(f"Logged in as {enrollment_number}")
 
     else:
         page.goto("https://cms.bahria.edu.pk/Logins/Student/Login.aspx")
         if "Login.aspx" in page.url:
-                page.goto("https://cms.bahria.edu.pk/Logins/Student/Login.aspx")
-                page.fill("#BodyPH_tbEnrollment", enrollment_number)
-                page.fill("#BodyPH_tbPassword", password)
-                page.select_option("#BodyPH_ddlInstituteID", "1")
-                page.click(f"#pageContent > div.container-fluid > div.row > div > div:nth-child({instituition})")
-                page.click("#BodyPH_btnLogin")
-                print(f"Logged in as {enrollment_number}")
-                lms_button = page.wait_for_selector("#sideMenuList > a:nth-child(16)")
-                page.evaluate("el => el.removeAttribute('target')", lms_button)
-                lms_button.click()
+                if enrollment_number != "" and password != "":
+                    page.goto("https://cms.bahria.edu.pk/Logins/Student/Login.aspx")
+                    page.fill("#BodyPH_tbEnrollment", enrollment_number)
+                    page.fill("#BodyPH_tbPassword", password)
+                    page.select_option("#BodyPH_ddlInstituteID", "1")
+                    page.click(f"#pageContent > div.container-fluid > div.row > div > div:nth-child({instituition})")
+                    page.click("#BodyPH_btnLogin")
+                    print(f"Logged in as {enrollment_number}")
+                    lms_button: Locator = page.wait_for_selector("#sideMenuList > a:nth-child(16)")
+                    page.evaluate("el => el.removeAttribute('target')", lms_button)
+                    lms_button.click()
+                elif not login_mode:
+                    subprocess.run(["python", os.path.join(os.path.dirname(__file__), "checkAssignments.py"), "--login"])
+                    exit(0)
+                elif login_mode:
+                    page.select_option("#BodyPH_ddlInstituteID", "1")
+                    page.click(f"#pageContent > div.container-fluid > div.row > div > div:nth-child({instituition})")
+                    try:
+                        lms_button: Locator = page.wait_for_selector("#sideMenuList > a:nth-child(16)", timeout=120000)
+
+                    except TimeoutError:
+                        print("Failed to log in, please enter your username and password.")
+                        exit(1)
+                    page.evaluate("el => el.removeAttribute('target')", lms_button)
+                    lms_button.click()
 
         elif ("QualityAssuranceSurveys.aspx" in page.url):
-            print("Please complete the Quality Assurance Survey to proceed.")   
+            print("Please complete the Quality Assurance Survey to proceed.")
             run_qa_survey(page, debug_mode)
-        
+
         else:
             print(f"Logged in as {enrollment_number}")
-            lms_button = page.wait_for_selector("#sideMenuList > a:nth-child(16)")
+            lms_button: Locator = page.wait_for_selector("#sideMenuList > a:nth-child(16)")
             page.evaluate("el => el.removeAttribute('target')", lms_button)
             lms_button.click()
 
-        persist_cookies(browser, debug_mode)
+        persist_cookies(browser, debug_mode, login_mode)
 
-def persist_cookies(browser, debug_mode: bool):
+def persist_cookies(browser, debug_mode: bool, login_mode: bool):
     """
     @brief Makes CMS cookies persistent for one year to maintain session across restarts.
     @param browser The BrowserContext object containing the cookies.
     @param debug_mode Boolean flag to enable debug output.
+    @param login_mode Boolean flag to indicate if login is required.
     @return None
     """
     cookies = browser.cookies()
@@ -195,6 +217,9 @@ def persist_cookies(browser, debug_mode: bool):
             browser.add_cookies([cookie])
             if debug_mode:
                 print(f"Made {cookie['name']} cookie persistent.")
+        if login_mode:
+            subprocess.run(["python", os.path.join(os.path.dirname(__file__), "checkAssignments.py")])
+            exit(0)
 
 def run_qa_survey(page, debug_mode: bool):
     """
@@ -255,14 +280,14 @@ def cleanup_old_files(download_dir: str, patterns: list, debug_mode: bool):
     """
     all_files = glob.glob(f"{download_dir}/**/*", recursive=True)
     keep_files = set()
-    
+
     for pattern in patterns:
         keep_files.update(glob.glob(pattern))
-        
+
     if platform.system() == "Windows":
         download_dir = download_dir.replace("/", "\\")
         keep_files = {f.replace("/", "\\") for f in keep_files}
-    
+
     for path in all_files:
         if os.path.isdir(path):
             continue
@@ -319,8 +344,8 @@ def fetch_assignments(page: Page, download_assignments: bool, debug_mode: bool) 
 
     for course in courses:
         page.select_option("#courseId", value=course['id'])
-        
-        page.wait_for_selector("table.table-hover tbody tr:not(:first-child)", timeout=5000)
+
+        page.wait_for_selector("table.table-hover tbody tr:not(:first-child)")
 
         table_data = page.evaluate("""() => {
             const rows = Array.from(document.querySelectorAll("table.table-hover tbody tr")).slice(1);
@@ -346,12 +371,12 @@ def fetch_assignments(page: Page, download_assignments: bool, debug_mode: bool) 
                 if download_assignments and item['download_url']:
                     link = f"https://lms.bahria.edu.pk/Student/{item['download_url']}"
                     patterns.append(download_assignment_file(page, course['name'], item['assignment_name'], deadline_date, link))
-                
+
                 deadlines.append((
-                    item['assignment_number'], 
-                    course['name'], 
-                    deadline_date, 
-                    "Delete" in item['action'], 
+                    item['assignment_number'],
+                    course['name'],
+                    deadline_date,
+                    "Delete" in item['action'],
                     "Extended" in item['deadline_title']
                 ))
 
@@ -471,7 +496,7 @@ def display_deadlines(deadlines: list, KDE_device: str, ntfy_server: str):
 
 if __name__ == "__main__":
     try:
-        if download_dir == "" or enrollment_number == "" or password == "" or data_dir == "":
+        if download_dir == "" or data_dir == "":
             print("Error: One or more required environment variables are not set.")
             exit(1)
 
@@ -480,10 +505,10 @@ if __name__ == "__main__":
 
         try:
             with sync_playwright() as p:
-                browser = start_playwright(args.debug)
+                browser = start_playwright(args.debug, args.login)
                 page = browser.pages[0]
                 page.set_default_timeout(60000)
-                check_and_login(page, args.debug)
+                check_and_login(page, args.debug, args.login)
                 deadlines, patterns = fetch_assignments(page, args.download_assignments, args.debug)
                 browser.close()
 
@@ -492,10 +517,10 @@ if __name__ == "__main__":
 
             if e == TimeoutError:
                 print("Operation timed out. The LMS or CMS might be down or unresponsive.")
-            
+
             elif ("ERR_INTERNET_DISCONNECTED" in error_message):
                 print("No internet connection. Please check your connection and try again.")
-            
+
             else:
                 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                 error_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "error_logs")
@@ -514,7 +539,7 @@ if __name__ == "__main__":
                         print(f"Saved debug HTML to: {html_file}")
                         print(f"Saved screenshot to: {screenshot_file}")
                         browser.close()
-                
+
                 except Exception as inner_e:
                     print(f"Failed to save debug info: {inner_e}")
             exit(1)
@@ -525,7 +550,7 @@ if __name__ == "__main__":
             display_whatsapp_formatted_deadlines(deadlines)
         else:
             display_deadlines(deadlines, args.kde, args.ntfy)
-        
+
         if args.download_assignments:
             cleanup_old_files(download_dir, patterns, args.debug)
 

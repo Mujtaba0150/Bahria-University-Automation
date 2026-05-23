@@ -9,6 +9,14 @@ set -o pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ==================================================
+# Colors for output
+# ==================================================
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# ==================================================
 # Find Python with pip
 # ==================================================
 PYTHON_CMD=""
@@ -21,135 +29,65 @@ fi
 
 # Install Python if missing
 if [[ -z "$PYTHON_CMD" ]]; then
-    echo "No Python with pip found. Installing..."
+    echo -e "${YELLOW}No Python with pip found. Installing...${NC}"
 
     if command -v apt >/dev/null 2>&1; then
+        echo "Detected Debian/Ubuntu system"
         sudo apt update
-        sudo apt install -y python3 python3-pip
+        sudo apt install -y python3 python3-pip python3-tk
     elif command -v dnf >/dev/null 2>&1; then
-        sudo dnf install -y python3 python3-pip
+        echo "Detected Fedora/RHEL system"
+        sudo dnf install -y python3 python3-pip python3-tkinter
     elif command -v pacman >/dev/null 2>&1; then
-        sudo pacman -Sy --noconfirm python python-pip
+        echo "Detected Arch system"
+        sudo pacman -Sy --noconfirm python python-pip tk
     elif command -v brew >/dev/null 2>&1; then
+        echo "Detected macOS system"
         brew install python
     else
-        echo "Unsupported package manager. Install Python manually."
+        echo -e "${RED}Unsupported package manager. Please install Python manually.${NC}"
+        echo "You need: Python 3.8+, pip, and tkinter"
         exit 1
     fi
 
     PYTHON_CMD="python3"
 fi
 
-echo "Using Python: $PYTHON_CMD"
+echo -e "${GREEN}Using Python: $PYTHON_CMD${NC}"
+
+# ==================================================
+# Verify Python version
+# ==================================================
+PYTHON_VERSION=$($PYTHON_CMD -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
+echo "Python version: $PYTHON_VERSION"
 
 # ==================================================
 # Install dependencies
 # ==================================================
-echo "Upgrading pip and installing requirements..."
-$PYTHON_CMD -m pip install --upgrade pip
+echo -e "${YELLOW}Upgrading pip and installing requirements...${NC}"
+$PYTHON_CMD -m pip install --upgrade pip setuptools wheel
 $PYTHON_CMD -m pip install -r "$SCRIPT_DIR/requirements.txt"
+
+# Install Playwright browsers
+echo -e "${YELLOW}Installing Playwright browsers...${NC}"
 $PYTHON_CMD -m playwright install chromium
 
-clear
-
 # ==================================================
-# Collect environment variables
+# Run setup GUI
 # ==================================================
-read -p "Enter your ENROLLMENT_NUMBER: " ENROLLMENT_NUMBER
-read -p "Enter your PASSWORD: " PASSWORD
+echo -e "${GREEN}Launching setup wizard...${NC}"
+cd "$SCRIPT_DIR"
+$PYTHON_CMD setup_gui.py
 
-read -p "Enter USER_DATA_DIR (default ~/.local/share/ms-playwright): " USER_DATA_DIR
-USER_DATA_DIR=${USER_DATA_DIR:-"$HOME/.local/share/ms-playwright"}
-
-read -p "Enter DOWNLOAD_DIR (default ~/Documents/Assignments): " DOWNLOAD_DIR
-DOWNLOAD_DIR=${DOWNLOAD_DIR:-"$HOME/Documents/Assignments"}
-
-read -p "Enter INSTITUTION (default 6): " INSTITUTION
-INSTITUTION=${INSTITUTION:-6}
-
-read -p "Enter DISABLED (0/1, default 0): " DISABLED
-DISABLED=${DISABLED:-0}
-
-read -p "Enter GENDER (0=Male,1=Female, default 0): " GENDER
-GENDER=${GENDER:-0}
-
-read -p "Enter AGE (0=<22,1=22-29,2=>29, default 0): " AGE
-AGE=${AGE:-0}
-
-read -p "Enter ON_CAMPUS (1/0, default 1): " ON_CAMPUS
-ON_CAMPUS=${ON_CAMPUS:-1}
-
-echo ""
-echo "NOTIFICATION_LEVEL:"
-echo "  0 = Due Today"
-echo "  1 = Next 4 days"
-echo "  2 = 7 days"
-echo "  3 = 14 days"
-echo "  4 = All"
-
-read -p "Enter (0-4, default 0): " NOTIFICATION_LEVEL
-NOTIFICATION_LEVEL=${NOTIFICATION_LEVEL:-0}
-
-read -p "Notify submitted? (0/1, default 1): " NOTIFY_SUBMITTED
-NOTIFY_SUBMITTED=${NOTIFY_SUBMITTED:-1}
-
-# ==================================================
-# Write .env file
-# ==================================================
-echo "Writing .env file..."
-
-cat > "$SCRIPT_DIR/.env" <<EOF
-ENROLLMENT_NUMBER=$ENROLLMENT_NUMBER
-PASSWORD=$PASSWORD
-USER_DATA_DIR=$USER_DATA_DIR
-DOWNLOAD_DIR=$DOWNLOAD_DIR
-INSTITUTION=$INSTITUTION
-DISABLED=$DISABLED
-GENDER=$GENDER
-AGE=$AGE
-ON_CAMPUS=$ON_CAMPUS
-NOTIFICATION_LEVEL=$NOTIFICATION_LEVEL
-NOTIFY_SUBMITTED=$NOTIFY_SUBMITTED
-EOF
-
-clear
-
-# ==================================================
-# Alias creation
-# ==================================================
-read -p "Create command aliases? (y/n): " CREATE_ALIASES
-
-if [[ "$CREATE_ALIASES" == "y" ]]; then
-    read -p "Alias for checkAssignments.py: " ASSIGNMENTS_ALIAS
-    read -p "Alias for checkAttendance.py: " ATTENDANCE_ALIAS
-    read -p "Alias for fillSurveys.py: " SURVEYS_ALIAS
-
-    # Detect Shell and Target File
-    if [[ -n "$ZSH_VERSION" ]] || [[ "$SHELL" == *"zsh"* ]]; then
-        TARGET_RC="$HOME/.zshrc"
-    elif [[ -f "$HOME/.bash_aliases" ]]; then
-        TARGET_RC="$HOME/.bash_aliases"
-    else
-        TARGET_RC="$HOME/.bashrc"
-    fi
-
-    echo "Adding aliases to $TARGET_RC..."
-
-    # Append to config file
-    cat >> "$TARGET_RC" <<EOF
-
-# --- Automation Script Aliases ---
-alias $ASSIGNMENTS_ALIAS='$PYTHON_CMD "$SCRIPT_DIR/checkAssignments.py"'
-alias $ATTENDANCE_ALIAS='$PYTHON_CMD "$SCRIPT_DIR/checkAttendance.py"'
-alias $SURVEYS_ALIAS='$PYTHON_CMD "$SCRIPT_DIR/fillSurveys.py"'
-EOF
-
-    echo "Aliases added successfully."
-    echo "Run 'source $TARGET_RC' to start using them."
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}Setup completed successfully!${NC}"
+    echo "Your .env file has been created."
+    echo ""
+    echo "You can now run the scripts:"
+    echo "  $PYTHON_CMD checkAssignments.py"
+    echo "  $PYTHON_CMD checkAttendance.py"
+    echo "  $PYTHON_CMD fillSurveys.py"
+else
+    echo -e "${RED}Setup wizard was cancelled or encountered an error.${NC}"
+    exit 1
 fi
-
-# ==================================================
-# Done
-# ==================================================
-echo ""
-echo "Setup complete. You can now use your aliases in the terminal."

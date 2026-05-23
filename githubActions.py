@@ -97,9 +97,9 @@ def check_and_login(page):
     lms_button = page.wait_for_selector("#sideMenuList > a:nth-child(16)")
     page.evaluate("el => el.removeAttribute('target')", lms_button)
     lms_button.click()
-    
+
     if ("QualityAssuranceSurveys.aspx" in page.url):
-        print("Please complete the Quality Assurance Survey to proceed.")   
+        print("Please complete the Quality Assurance Survey to proceed.")
         send_notification("Error" ,"Please complete the Quality Assurance Survey to proceed.", 2)
         exit(1)
 
@@ -118,10 +118,10 @@ def download_assignment_file(page, subject_name: str, assignment_name: str, dead
 
     subject_dir = f"{os.environ.get('HOME')}/{subject_name}"
     file_base = f"{assignment_name} - {deadline_date}"
-    
+
     with page.expect_download() as download_info:
         page.evaluate(f"window.location.href = '{assignment_link}'")
-    
+
     download = download_info.value
     file_name = download.suggested_filename
     _, file_ext = os.path.splitext(file_name)
@@ -137,7 +137,7 @@ def fetch_assignments(page: Page) -> list:
     @return List of tuples containing assignment number, subject, deadline, submitted status, extended flag, and file path.
     """
     deadlines = []
-    
+
     # Navigate to Assignments page if not already there
     if "Assignments.php" not in page.url:
         page.goto("https://lms.bahria.edu.pk/Student/Assignments.php", wait_until="commit")
@@ -152,7 +152,7 @@ def fetch_assignments(page: Page) -> list:
     for course in subjects:
         # Select the subject via its ID value
         page.select_option("#courseId", value=course['id'])
-        
+
         # Wait for the table to refresh for the specific subject
         try:
             page.wait_for_selector("table.table-hover tbody tr:not(:first-child)", timeout=5000)
@@ -166,7 +166,7 @@ def fetch_assignments(page: Page) -> list:
             return rows.map(row => {
                 const cells = row.querySelectorAll("td");
                 if (cells.length < 8) return null;
-                
+
                 const deadlineSmall = cells[7].querySelector("small");
                 return {
                     action: cells[6].innerText,
@@ -196,19 +196,19 @@ def fetch_assignments(page: Page) -> list:
                     assignment_link = f"https://lms.bahria.edu.pk/Student/{item['download_url']}"
                     # Re-use the existing download helper
                     final_path = download_assignment_file(
-                        page, 
-                        course['name'], 
-                        item['assignment_name'], 
-                        deadline_date, 
+                        page,
+                        course['name'],
+                        item['assignment_name'],
+                        deadline_date,
                         assignment_link
                     )
-                
+
                 deadlines.append((
-                    item['assignment_number'], 
-                    course['name'], 
-                    deadline_date, 
-                    is_submitted, 
-                    is_extended, 
+                    item['assignment_number'],
+                    course['name'],
+                    deadline_date,
+                    is_submitted,
+                    is_extended,
                     final_path if download_assignments else None
                 ))
 
@@ -377,24 +377,24 @@ if __name__ == "__main__":
         browser = None
         with sync_playwright() as p:
             browser = start_playwright()
-            
+
             context = browser.new_context(viewport={'width': 1920, 'height': 1080})
-            context.route("**/*", lambda route: 
+            context.route("**/*", lambda route:
                 route.abort() if route.request.resource_type in ["image", "media", "font", "stylesheet"]
                 or route.request.resource_type == "script" and not (route.request.url.startswith("https://cms.bahria.edu.pk/"))
-                or "google-analytics" in route.request.url 
+                or "google-analytics" in route.request.url
                 or "fontawesome" in route.request.url
                 else route.continue_()
             )
             page = context.new_page()
-            
+
             page.set_default_timeout(60000)
             # sleep(2000000)
             check_and_login(page)
             deadlines = fetch_assignments(page)
             alert_deadline(deadlines, ntfy_server)
             scrape_and_alert_attendance(page, debug_mode=False)
-            
+
             browser.close()
     except Exception as e:
         error_message = str(e)

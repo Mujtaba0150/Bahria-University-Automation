@@ -58,6 +58,7 @@ def start_playwright(debug_mode: bool):
     browser = p.chromium.launch_persistent_context(
         user_data_dir=data_dir,
         headless= not debug_mode,
+        no_viewport=True,
         args=[
             "--window-size=1920,1080",
             "--disable-gpu",
@@ -75,7 +76,7 @@ def start_playwright(debug_mode: bool):
             "--mute-audio"
         ]
     )
-    
+
     return browser
 
 def parse_args():
@@ -95,7 +96,7 @@ def check_and_login_to_CMS(page, debug_mode: bool):
     @return None
     """
     page.goto("https://cms.bahria.edu.pk/Sys/Student/QualityAssurance/QualityAssuranceSurveys.aspx")
-    
+
     if "Login.aspx" in page.url in page.url:
         if debug_mode:
             print("Login required. Navigating to login page...")
@@ -153,13 +154,13 @@ def handle_surveys(page, option: int, debug_mode: bool):
 
     custom_input = input("\nEnter the survey numbers to fill manually (comma-separated), or press Enter to fill all: ")
     custom_input = [x.strip() for x in custom_input.split(",")]
-    
+
     for survey in survey_data:
         survey_url = "https://cms.bahria.edu.pk/Sys/Student/QualityAssurance/" + survey["url"]
         page.goto(survey_url)
-        
+
         currently_filling = f"Filling survey: {survey['course']} - {survey['teacher']}({survey['survey_name']})"
-        
+
         if survey["sr_no"] in custom_input:
             fill_custom_survey(page, currently_filling, debug_mode)
         else:
@@ -195,7 +196,7 @@ def extract_survey_data(rows, debug_mode: bool):
                 teacher_name = teacher_cell.inner_text().strip() if teacher_cell else None
                 sr_no_text = sr_no.inner_text().strip() if sr_no else None
                 survey_name = survey_name_cell.inner_text().strip() if survey_name_cell else "None"
-                
+
                 survey_data.append({
                     "sr_no": sr_no_text,
                     "survey_name": survey_name[:-16].strip(),
@@ -265,9 +266,9 @@ def fill_survey(page, debug_mode: bool, option: int):
                 if debug_mode:
                     print(f"Failed to click ({input_id}): {e}")
 
-    if groups == course_groups: 
+    if groups == course_groups:
         fill_demographic_info(page)
-    
+
     # Submit
     submit_selector = "#BodyPH_surveyUserControl_btnSubmit"
     page.click(submit_selector)
@@ -285,7 +286,7 @@ def fill_custom_survey(page, currently_filling, debug_mode: bool):
     """
     if debug_mode:
         print("Custom survey detected. Manual intervention required.")
-    
+
     clear_terminal()
     print(currently_filling + "\n")
     choice = int(input("Do you want to fill the same value for all questions? (0=No, 1=Yes): "))
@@ -295,7 +296,7 @@ def fill_custom_survey(page, currently_filling, debug_mode: bool):
             "Select your default answer option (0=Strongly Agree, 1=Agree, 2=Uncertain, 3=Disagree, 4=Strongly Disagree): "
         ))
         fill_survey(page, debug_mode, selected_option)
-    
+
     else:
         # Detect which survey is loaded
         heading_element = page.wait_for_selector("#BodyPH_surveyUserControl_lbName")
@@ -350,7 +351,7 @@ def fill_custom_survey(page, currently_filling, debug_mode: bool):
                     except Exception as e:
                         if debug_mode:
                             print(f"Failed to click ({input_id}): {e}")
-        if groups == course_groups: 
+        if groups == course_groups:
             fill_demographic_info(page)
 
         # Submit
@@ -366,20 +367,20 @@ def fill_demographic_info(page):
     # Fulltime/Parttime
     page.wait_for_selector("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_0_1_0", timeout=10000)
     page.click("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_0_1_0")
-    
+
     # Disabled/Non-Disabled
     selector = f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_1_{int(not disabled)}_1"
     page.wait_for_selector(selector, timeout=10000)
     page.click(selector)
-    
+
     # Male/Female
     page.wait_for_selector(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_3_{gender}_3", timeout=10000)
     page.click(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_3_{gender}_3")
-    
+
     # Age:>22/22-29/>29
     page.wait_for_selector(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_4_{age}_4", timeout=10000)
     page.click(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_4_{age}_4")
-    
+
     # On Campus/Off Campus
     page.wait_for_selector(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_5_{on_campus}_5", timeout=10000)
     page.click(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_5_{on_campus}_5")
@@ -436,7 +437,7 @@ if __name__ == "__main__":
                     except Exception as inner_e:
                         print(f"Failed to save debug info: {inner_e}")
                 exit(1)
-        
+
         if check_updates:
             check_for_updates()
     except Exception as e:

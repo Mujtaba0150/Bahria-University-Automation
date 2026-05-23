@@ -47,31 +47,25 @@ A collection of Python automation scripts to streamline common tasks for Bahria 
 
 ### Automated Setup (Recommended)
 
-The repository includes setup scripts that handle Python installation, dependencies, environment configuration, and PATH setup.
+The repository includes setup scripts that handle Python installation, dependencies and open a Tkinter wizard for environment configuration, and PATH setup.
 
 #### Windows
 
-Run the batch script with administrator privileges (if installing for all users):
+Run the batch script to open the wizard:
 
 ```bat
 setup.bat
 ```
-Run with administrator privileges for system-wide PATH setup.
-
 **Linux / macOS:**
 ```bash
 chmod +x setup.sh
 ./setup.sh
 ```
-Optionally use `sudo` for system-wide PATH setup.
-
-Both scripts will:
-1. Check for Python (install if missing)
-2. Upgrade pip and install dependencies from `requirements.txt`
-3. Prompt for environment variables and create `.env`
-4. Add script directory to PATH (user or system)
-5. Create command aliases for scripts
-6. Restart your terminal after completion to apply changes
+The wizard will:
+1. Collect the required login and download paths
+2. Collect the survey-related profile values
+3. Configure notification settings and optional aliases
+4. Write the `.env` file and register launchers when requested
 
 ### Manual Setup
 
@@ -85,13 +79,13 @@ Both scripts will:
 
 3. Create a `.env` file in the project root with required variables (see below)
    ```env
-   ENROLLMENT_NUMBER=your_enrollment_number
-   PASSWORD=your_password
+   INSTITUTION=6                    # Institution selection (default: 6)
    USER_DATA_DIR=/path/to/browser/profile
    DOWNLOAD_DIR=/path/to/downloads
-   
+
    # Optional
-   INSTITUTION=6                    # Institution selection (default: 6)
+   ENROLLMENT_NUMBER=your_enrollment_number
+   PASSWORD=your_password
    DISABLED=0                        # 0=Non-disabled, 1=Disabled
    GENDER=0                          # 0=Male, 1=Female
    AGE=0                             # 0=<22, 1=22-29, 2=>29
@@ -107,8 +101,8 @@ Both scripts will:
 
 | Variable | Required For | Description |
 |----------|-------------|-------------|
-| `ENROLLMENT_NUMBER` | All scripts | Your Bahria University enrollment number |
-| `PASSWORD` | All scripts | Your CMS password |
+| `ENROLLMENT_NUMBER` | githubActions.py | Your Bahria University enrollment number |
+| `PASSWORD` | githubActions.py | Your CMS password |
 | `USER_DATA_DIR` | All scripts | Path to persistent browser profile (e.g., `/home/username/.config/ms-playwright`, `C:\Users\username\AppData\Local\ms-playwright`) |
 | `DOWNLOAD_DIR` | `checkAssignments.py` | Directory where assignment files will be downloaded |
 
@@ -213,25 +207,25 @@ The `githubActions.py` script runs automatically on a schedule via GitHub Action
       schedule:
         - cron: '0 3,9,13 * * *' # Modify to your preference
       workflow_dispatch: # Manual trigger for testing
-    
+
     jobs:
       run-bot:
         runs-on: ubuntu-latest
         timeout-minutes: 3
-        
+
         steps:
           - uses: actions/checkout@v4
-          
+
           - name: Set up Python
             uses: actions/setup-python@v5
             with:
               python-version: '3.11'
-          
+
           - name: Install Dependencies
             run: |
               pip install playwright requests python-dotenv
               playwright install --with-deps chromium
-          
+
           - name: Run Script
             env:
               ENROLLMENT_NUMBER: ${{ secrets.ENROLLMENT_NUMBER }}
@@ -241,9 +235,9 @@ The `githubActions.py` script runs automatically on a schedule via GitHub Action
               NOTIFY_EXTENDED: ${{ secrets.NOTIFY_EXTENDED || '1' }}
               INSTITUTION: ${{ secrets.INSTITUTION || '6' }}
               DOWNLOAD_ASSIGNMENTS: ${{ secrets.DOWNLOAD_ASSIGNMENTS || '0' }}
-            
+
             run: |
-              python githubActions.py 
+              python githubActions.py
    ```
 
 2. Add your credentials as GitHub Secrets:
