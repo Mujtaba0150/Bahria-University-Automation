@@ -38,8 +38,6 @@ class SetupWizard:
         self.root.title("Bahria University Automation - Setup Wizard")
         self.root.geometry("700x550")
         self.root.resizable(True, True)
-        icon = tk.PhotoImage(file="images/Picture.png")
-        self.root.iconphoto(True, icon)
 
         # Configure colors
         self.bg_color = "#f5f5f5"

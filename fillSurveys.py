@@ -156,6 +156,7 @@ def handle_surveys(page, option: int, debug_mode: bool):
     custom_input = [x.strip() for x in custom_input.split(",")]
 
     for survey in survey_data:
+        sleep(1) 
         survey_url = "https://cms.bahria.edu.pk/Sys/Student/QualityAssurance/" + survey["url"]
         page.goto(survey_url)
 
@@ -164,6 +165,8 @@ def handle_surveys(page, option: int, debug_mode: bool):
         if survey["sr_no"] in custom_input:
             fill_custom_survey(page, currently_filling, debug_mode)
         else:
+            if debug_mode:
+                print(currently_filling)
             fill_survey(page, debug_mode, option)
 
 def extract_survey_data(rows, debug_mode: bool):
