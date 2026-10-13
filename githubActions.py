@@ -1,4 +1,5 @@
 from playwright.sync_api import sync_playwright, Page
+from typing import NamedTuple 
 from datetime import datetime
 from dotenv import load_dotenv
 from time import sleep
@@ -14,6 +15,16 @@ notify_extended = int(os.getenv("NOTIFY_EXTENDED", "1"))
 instituition = int(os.getenv("INSTITUTION", "6"))
 ntfy_server = os.getenv("NTFY_SERVER", "")
 download_assignments = int(os.getenv("DOWNLOAD_ASSIGNMENTS", "0"))
+
+class Notification(NamedTuple):
+    notification_message: str
+    days_left: int
+    priority: int
+    submitted: bool
+    extended: bool
+    final_path: str
+
+notifications: list[Notification]
 
 def clean_text(text: str) -> str:
     """
@@ -79,7 +90,7 @@ def send_notification(title, message: str, priority: int, file_path: str = ""):
             headers={"Title": title, "Priority": str(priority)},
         )
     else:
-        print("ntfy_server is not set. Cannot send notification.")
+        print("NTFY_SERVER is not set. Cannot send notification.")
 
 def check_and_login(page):
     """
@@ -91,12 +102,9 @@ def check_and_login(page):
     page.fill("#BodyPH_tbEnrollment", enrollment_number)
     page.fill("#BodyPH_tbPassword", password)
     page.select_option("#BodyPH_ddlInstituteID", "1")
-    page.click(f"#pageContent > div.container-fluid > div.row > div > div:nth-child({instituition})")
     page.click("#BodyPH_btnLogin")
     print(f"Logged in as {enrollment_number}")
-    lms_button = page.wait_for_selector("#sideMenuList > a:nth-child(16)")
-    page.evaluate("el => el.removeAttribute('target')", lms_button)
-    lms_button.click()
+    page.goto("https://cms.bahria.edu.pk/Sys/Common/GoToLMS.aspx", wait_until="commit")
 
     if ("QualityAssuranceSurveys.aspx" in page.url):
         print("Please complete the Quality Assurance Survey to proceed.")
@@ -214,20 +222,14 @@ def fetch_assignments(page: Page) -> list:
 
     return deadlines
 
-def fetch_cached_notifications(ntfy_server: str) -> list:
+def fetch_cached_notifications(ntfy_server: str, notifications: list[Notification]) -> list:
     cached_notifications = []
 
-    titles = [
-        "Assignment+Due+Today",
-        "Assignment+Due+in+Next+4+Days",
-        "Assignment+Due+in+Next+7+Days",
-        "Assignment+Due+in+Next+14+Days",
-        "Upcoming+Assignments"
-    ]
+    notification_messages = [notification.notification_message for notification in notifications]
 
-    for title in titles:
+    for notification_message in notification_messages:
         if ntfy_server:
-            response = requests.get(f"https://ntfy.sh/{ntfy_server}/json?poll=1&title={title}")
+            response = requests.get(f"https://ntfy.sh/{ntfy_server}/json?poll=1&message={notification_message}")
             lines = response.text.splitlines()
 
             for line in lines:
@@ -243,6 +245,7 @@ def delete_cached_notification(ntfy_server: str, message: str, cached_notificati
     for notification in cached_notifications:
         if notification["message"] == message.strip():
             requests.delete(f"https://ntfy.sh/{ntfy_server}/{notification['id']}")
+            break
 
 def alert_deadline(deadlines: list, ntfy_server: str):
     """
@@ -264,7 +267,7 @@ def alert_deadline(deadlines: list, ntfy_server: str):
     level_to_max_days = {0: 0, 1: 4, 2: 7, 3: 14, 4: float("inf")}
     max_days_for_notification = level_to_max_days.get(notification_level, 0)
 
-    notifications = []
+    notifications: list[Notification] = []
 
     for assignment_number, subject, deadline_date, days_left, submitted, extended, final_path in parsed_deadlines:
         display_date = deadline_date.strftime("%-d %B")
@@ -272,9 +275,9 @@ def alert_deadline(deadlines: list, ntfy_server: str):
 
         if days_left <= max_days_for_notification and (not submitted or (notify_extended and extended)):
             priority = 5 if days_left == 0 else 4 if days_left <= 4 else 3
-            notifications.append((notification_message, days_left, priority, submitted, extended, final_path))
+            notifications.append(Notification(notification_message, days_left, priority, submitted, extended, final_path))
 
-    cached_notifications = fetch_cached_notifications(ntfy_server)
+    cached_notifications = fetch_cached_notifications(ntfy_server, notifications)
 
     for notification, days_left, priority, submitted, extended, final_path in notifications:
             if ntfy_server and (not submitted or (notify_extended and extended)):
@@ -283,13 +286,13 @@ def alert_deadline(deadlines: list, ntfy_server: str):
                     send_notification("Assignment Due Today", notification, priority, final_path if final_path else "")
                 elif days_left <= 4:
                     delete_cached_notification(ntfy_server, notification, cached_notifications)
-                    send_notification("Assignment Due in Next 4 Days", notification, priority, final_path if final_path else "")
+                    send_notification(f"Assignment Due in {days_left} Days", notification, priority, final_path if final_path else "")
                 elif days_left <= 7:
                     delete_cached_notification(ntfy_server, notification, cached_notifications)
-                    send_notification("Assignment Due in Next 7 Days", notification, priority, final_path if final_path else "")
+                    send_notification(f"Assignment Due in {days_left} Days", notification, priority, final_path if final_path else "")
                 elif days_left <= 14:
                     delete_cached_notification(ntfy_server, notification, cached_notifications)
-                    send_notification("Assignment Due in Next 14 Days", notification, priority, final_path if final_path else "")
+                    send_notification(f"Assignment Due in {days_left} Days", notification, priority, final_path if final_path else "")
                 else:
                     delete_cached_notification(ntfy_server, notification, cached_notifications)
                     send_notification("Upcoming Assignments", notification, priority, final_path if final_path else "")
@@ -363,7 +366,8 @@ if __name__ == "__main__":
     try:
         if enrollment_number == "" or password == "" or notification_level < 0 or notification_level > 4 or ntfy_server == "":
             print("Error: One or more required environment variables are not set or are incorrectly set.")
-            send_notification("Error", "Error: One or more required environment variables are not set or are incorrectly set.", 1)
+            if ntfy_server != "":
+                send_notification("Error", "Error: One or more required environment variables are not set or are incorrectly set.", 1)
             if enrollment_number == "":
                 print("ENROLLMENT_NUMBER is not set.")
             if password == "":

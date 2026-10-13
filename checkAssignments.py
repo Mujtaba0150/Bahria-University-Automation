@@ -148,7 +148,7 @@ def check_and_login(page: Page, debug_mode: bool, login_mode: bool):
     page.goto("https://lms.bahria.edu.pk/Student/Assignments.php", wait_until="commit")
 
     if  ("https://lms.bahria.edu.pk/" in page.url):
-        logged_in_enrollment_number: str = page.locator("body > div > header > nav > div > ul > li.dropdown.user.user-menu > ul > li.user-header > p").text_content().strip()
+        logged_in_enrollment_number: str = page.locator("body > div > header > nav > div > ul > li.dropdown.user.user-menu > ul > li.user-header > p").text_content().strip()  # type: ignore[union-attr]
         if enrollment_number not in logged_in_enrollment_number:
             if debug_mode:
                 print("Logged in with a different account. Logging out...")
@@ -168,12 +168,10 @@ def check_and_login(page: Page, debug_mode: bool, login_mode: bool):
                     page.fill("#BodyPH_tbEnrollment", enrollment_number)
                     page.fill("#BodyPH_tbPassword", password)
                     page.select_option("#BodyPH_ddlInstituteID", "1")
-                    page.click(f"#pageContent > div.container-fluid > div.row > div > div:nth-child({instituition})")
                     page.click("#BodyPH_btnLogin")
                     print(f"Logged in as {enrollment_number}")
-                    lms_button: Locator = page.wait_for_selector("#sideMenuList > a:nth-child(16)")
-                    page.evaluate("el => el.removeAttribute('target')", lms_button)
-                    lms_button.click()
+                    page.goto("https://cms.bahria.edu.pk/Sys/Common/GoToLMS.aspx")
+
                 elif not login_mode:
                     subprocess.run(["python", os.path.join(os.path.dirname(__file__), "checkAssignments.py"), "--login"])
                     exit(0)
@@ -181,13 +179,14 @@ def check_and_login(page: Page, debug_mode: bool, login_mode: bool):
                     page.select_option("#BodyPH_ddlInstituteID", "1")
                     page.click(f"#pageContent > div.container-fluid > div.row > div > div:nth-child({instituition})")
                     try:
-                        lms_button: Locator = page.wait_for_selector("#sideMenuList > a:nth-child(16)", timeout=120000)
+                        page.goto("https://cms.bahria.edu.pk/Sys/Common/GoToLMS.aspx")
+
 
                     except TimeoutError:
                         print("Failed to log in, please enter your username and password.")
                         exit(1)
-                    page.evaluate("el => el.removeAttribute('target')", lms_button)
-                    lms_button.click()
+                    page.goto("https://cms.bahria.edu.pk/Sys/Common/GoToLMS.aspx")
+
 
         elif ("QualityAssuranceSurveys.aspx" in page.url):
             print("Please complete the Quality Assurance Survey to proceed.")
@@ -195,9 +194,7 @@ def check_and_login(page: Page, debug_mode: bool, login_mode: bool):
 
         else:
             print(f"Logged in as {enrollment_number}")
-            lms_button: Locator = page.wait_for_selector("#sideMenuList > a:nth-child(16)")
-            page.evaluate("el => el.removeAttribute('target')", lms_button)
-            lms_button.click()
+            page.goto("https://cms.bahria.edu.pk/Sys/Common/GoToLMS.aspx")
 
         persist_cookies(browser, debug_mode, login_mode)
 
