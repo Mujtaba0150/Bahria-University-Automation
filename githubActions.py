@@ -104,7 +104,11 @@ def check_and_login(page):
     page.select_option("#BodyPH_ddlInstituteID", "1")
     page.click("#BodyPH_btnLogin")
     print(f"Logged in as {enrollment_number}")
-    page.goto("https://cms.bahria.edu.pk/Sys/Common/GoToLMS.aspx", wait_until="commit")
+    # page.goto("https://cms.bahria.edu.pk/Sys/Common/GoToLMS.aspx", wait_until="domcontentloaded")
+    lms_button = page.locator("//*[(@id=\"sideMenuList\")]/a[12]")
+    lms_button.evaluate("el => el.removeAttribute('target')")
+    lms_button.click()
+
 
     if ("QualityAssuranceSurveys.aspx" in page.url):
         print("Please complete the Quality Assurance Survey to proceed.")
@@ -229,7 +233,14 @@ def fetch_cached_notifications(ntfy_server: str, notifications: list[Notificatio
 
     for notification_message in notification_messages:
         if ntfy_server:
-            response = requests.get(f"https://ntfy.sh/{ntfy_server}/json?poll=1&message={notification_message}")
+            import urllib3.util.connection as urllib3Connection
+
+            urllib3Connection.allowed_gai_family = lambda: __import__("socket").AF_INET
+
+            response = requests.get(
+                f"https://ntfy.sh/{ntfy_server}/json?poll=1&message={notification_message}"
+            )
+            # response = requests.get(f"https://ntfy.sh/{ntfy_server}/json?poll=1&message={notification_message}")
             lines = response.text.splitlines()
 
             for line in lines:
