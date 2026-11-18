@@ -1,83 +1,32 @@
-from playwright.sync_api import sync_playwright
-from datetime import datetime
-from dotenv import load_dotenv
-import requests
-import os
-import platform
-import argparse
+from playwright.sync_api import sync_playwright, Page
 from time import sleep
+import argparse
+import sys
 
-load_dotenv()
-enrollment_number = os.getenv("ENROLLMENT_NUMBER", "")
-password = os.getenv("PASSWORD", "")
-data_dir = os.getenv("USER_DATA_DIR", "")
-disabled = int(os.getenv("DISABLED", 0))
-gender = int(os.getenv("GENDER", 0))
-age = int(os.getenv("AGE", 0))
-on_campus = int(os.getenv("ON_CAMPUS", 1))
-instituition = int(os.getenv("INSTITUTION", "6"))
-check_updates = int(os.getenv("CHECK_UPDATES", "1"))
+from functions import (
+    ENROLLMENT_NUMBER, PASSWORD, USER_DATA_DIR, CHECK_UPDATES, CMS_SURVEYS_URL,
+    DISABLED, GENDER, AGE, ON_CAMPUS,
+    clear_terminal, check_for_updates,
+    start_browser, get_page, close_browser, handle_script_error, ensure_cms_login,
+)
 
-def clear_terminal():
-    """
-    @brief Clears the terminal/console screen based on the operating system.
-    @return None
-    """
-    if platform.system() == "Windows":
-        os.system("cls")
-    else:
-        os.system("clear")
+# Number of questions in each question group, for both survey types
+TEACHER_GROUPS = {
+    0: 13,
+    1: 5
+}
 
-def check_for_updates():
-    """
-    @brief Checks if a new version of the application is available on GitHub.
-    @return None
-    """
-    with open(os.path.join(os.path.dirname(__file__), "version.txt"), "r") as f:
-        local_version = f.readline().strip()
-        f.close()
-
-    try:
-        url = "https://raw.githubusercontent.com/Mujtaba0150/Bahria-University-Automation/master/version.txt"
-        response = requests.get(url, timeout=5)
-        response.raise_for_status()
-        remote_version = response.text.strip()
-
-        if local_version != remote_version:
-            print(f"A new version ({remote_version}) is available! You are using version {local_version}. Please update to the latest version.")
-            print("Visit https://github.com/Mujtaba0150/Bahria-University-Automation to download the latest version or use git to update.")
-    except requests.RequestException:
-        print("Could not check for updates. Please check your internet connection.")
-
-def start_playwright(debug_mode: bool):
-    """
-    @brief Launches a persistent Chromium browser with optimized settings for survey access.
-    @param debug_mode Boolean flag to launch browser in debug mode (non-headless).
-    @return BrowserContext object representing the persistent browser context.
-    """
-    browser = p.chromium.launch_persistent_context(
-        user_data_dir=data_dir,
-        headless= not debug_mode,
-        no_viewport=True,
-        args=[
-            "--window-size=1920,1080",
-            "--disable-gpu",
-            "--disable-software-rasterizer",
-            "--disable-extensions",
-            "--disable-infobars",
-            "--disable-dev-shm-usage",
-            "--no-sandbox",
-            "--disable-blink-features=AutomationControlled",
-            "--disable-logging",
-            "--log-level=3",
-            "--disable-features=Translate,BackForwardCache,RendererCodeIntegrity,IsolateOrigins,site-per-process",
-            "--blink-settings=imagesEnabled=false",
-            "--disable-animations",
-            "--mute-audio"
-        ]
-    )
-
-    return browser
+COURSE_GROUPS = {
+    0: 3,
+    1: 3,
+    2: 4,
+    3: 4,
+    4: 3,
+    5: 3,
+    6: 4,
+    7: 3,
+    8: 2
+}
 
 def parse_args():
     """
@@ -88,54 +37,7 @@ def parse_args():
     parser.add_argument("--debug", "-d", action="store_true", help="Enable debug mode")
     return parser.parse_args()
 
-def check_and_login_to_CMS(page, debug_mode: bool):
-    """
-    @brief Authenticates user and navigates to the survey page, handling login if needed.
-    @param page The Playwright page object to interact with.
-    @param debug_mode Boolean flag to enable debug output.
-    @return None
-    """
-    page.goto("https://cms.bahria.edu.pk/Sys/Student/QualityAssurance/QualityAssuranceSurveys.aspx")
-
-    if "Login.aspx" in page.url in page.url:
-        if debug_mode:
-            print("Login required. Navigating to login page...")
-
-        page.goto("https://cms.bahria.edu.pk/Logins/Student/Login.aspx")
-        page.fill("#BodyPH_tbEnrollment", enrollment_number)
-        page.fill("#BodyPH_tbPassword", password)
-        page.select_option("#BodyPH_ddlInstituteID", "1")
-        page.click(f"#pageContent > div.container-fluid > div.row > div > div:nth-child({instituition})")
-
-        persist_cookies(browser, debug_mode)
-        page.goto("https://cms.bahria.edu.pk/Sys/Student/QualityAssurance/QualityAssuranceSurveys.aspx")
-
-    else:
-        logged_in_enrollment_number = page.locator("#ProfileInfo_lblUsername").text_content().strip()
-        if enrollment_number not in logged_in_enrollment_number:
-            if debug_mode:
-                print("Logged in with a different account. Logging out...")
-            page.click("#AccountsNavbar > ul")
-            page.click("#ProfileInfo_hlLogoff")
-            check_and_login_to_CMS(page, debug_mode)
-
-def persist_cookies(browser, debug_mode: bool):
-    """
-    @brief Makes CMS cookies persistent for one year to maintain session across restarts.
-    @param browser The BrowserContext object containing the cookies.
-    @param debug_mode Boolean flag to enable debug output.
-    @return None
-    """
-    cookies = browser.cookies()
-    for cookie in cookies:
-        if cookie["name"] == "cms":
-            cookie["expires"] = datetime.now().timestamp() + 31536000
-            cookie["session"] = False
-            browser.add_cookies([cookie])
-            if debug_mode:
-                print(f"Made {cookie['name']} cookie persistent.")
-
-def handle_surveys(page, option: int, debug_mode: bool):
+def handle_surveys(page: Page, option: int, debug_mode: bool):
     """
     @brief Finds and handles all pending survey forms, allowing manual or automatic filling.
     @param page The Playwright page object to interact with.
@@ -143,7 +45,7 @@ def handle_surveys(page, option: int, debug_mode: bool):
     @param debug_mode Boolean flag to enable debug output.
     @return None
     """
-    page.goto("https://cms.bahria.edu.pk/Sys/Student/QualityAssurance/QualityAssuranceSurveys.aspx")
+    page.goto(CMS_SURVEYS_URL)
     page.wait_for_selector("#BodyPH_gvSurveyConducts")
 
     rows = page.query_selector_all("#BodyPH_gvSurveyConducts > tbody > tr")
@@ -156,7 +58,7 @@ def handle_surveys(page, option: int, debug_mode: bool):
     custom_input = [x.strip() for x in custom_input.split(",")]
 
     for survey in survey_data:
-        sleep(1) 
+        sleep(1)
         survey_url = "https://cms.bahria.edu.pk/Sys/Student/QualityAssurance/" + survey["url"]
         page.goto(survey_url)
 
@@ -183,6 +85,10 @@ def extract_survey_data(rows, debug_mode: bool):
         course_cell = row.query_selector("td:nth-child(4)")
         teacher_cell = row.query_selector("td:nth-child(5)")
         link = row.query_selector("td:last-child a")
+
+        # Skip rows that aren't surveys (e.g. the single "No record found." row)
+        if not course_cell or not link:
+            continue
 
         course_title = course_cell.evaluate("""
         (element) => {
@@ -211,8 +117,59 @@ def extract_survey_data(rows, debug_mode: bool):
         print(f"Extracted {len(survey_data)} surveys.")
     return survey_data
 
-# Format: BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_{section}_rbl_{question_number}_{option}_{question_number}
-def fill_survey(page, debug_mode: bool, option: int):
+def get_question_groups(page: Page) -> dict:
+    """
+    @brief Detects which survey is loaded and returns its question groups.
+    @param page The Playwright page object containing the survey form.
+    @return TEACHER_GROUPS or COURSE_GROUPS.
+    """
+    heading_text = page.wait_for_selector("#BodyPH_surveyUserControl_lbName").inner_text()
+    return TEACHER_GROUPS if "Teacher Evaluation Form" in heading_text else COURSE_GROUPS
+
+def click_option(page: Page, group_index: int, question_number: int, option: int, debug_mode: bool):
+    """
+    @brief Clicks one answer of one survey question.
+    Input id format: BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_{section}_rbl_{question_number}_{option}_{question_number}
+    @param page The Playwright page object containing the survey form.
+    @param group_index The question group (section) index.
+    @param question_number The question index within the group.
+    @param option The answer index to click.
+    @param debug_mode Boolean flag to enable debug output.
+    @return None
+    """
+    input_id = (
+        f"BodyPH_surveyUserControl_repeaterQuestionGroups_"
+        f"repeaterQuestions_{group_index}_rbl_{question_number}_{option}_{question_number}"
+    )
+    selector = f"#{input_id}"
+
+    try:
+        page.wait_for_selector(selector, timeout=10000)
+        page.click(selector)
+        if debug_mode:
+            print(f"Clicked: {input_id}")
+    except Exception as e:
+        if debug_mode:
+            print(f"Failed to click ({input_id}): {e}")
+
+def submit_survey(page: Page, groups: dict, debug_mode: bool):
+    """
+    @brief Fills demographic info (course surveys only) and submits the survey.
+    @param page The Playwright page object containing the survey form.
+    @param groups The question groups of the loaded survey.
+    @param debug_mode Boolean flag to enable debug output.
+    @return None
+    """
+    if groups == COURSE_GROUPS:
+        fill_demographic_info(page)
+
+    submit_selector = "#BodyPH_surveyUserControl_btnSubmit"
+    page.click(submit_selector)
+
+    if debug_mode:
+        print(f"Clicked: {submit_selector}")
+
+def fill_survey(page: Page, debug_mode: bool, option: int):
     """
     @brief Automatically fills a survey form with the specified option for all questions.
     @param page The Playwright page object containing the survey form.
@@ -220,68 +177,21 @@ def fill_survey(page, debug_mode: bool, option: int):
     @param option The response option to select (0=Strongly Agree, 4=Strongly Disagree).
     @return None
     """
-    # Detect which survey is loaded
-    heading_element = page.wait_for_selector("#BodyPH_surveyUserControl_lbName")
-    heading_text = heading_element.inner_text()
+    groups = get_question_groups(page)
 
-    # Question groups for both survey types
-    teacher_groups = {
-        0: 13,
-        1: 5
-    }
-
-    course_groups = {
-        0: 3,
-        1: 3,
-        2: 4,
-        3: 4,
-        4: 3,
-        5: 3,
-        6: 4,
-        7: 3,
-        8: 2
-    }
-
-    # Pick correct mapping
-    groups = teacher_groups if "Teacher Evaluation Form" in heading_text else course_groups
-
-    # Fill the survey
     for group_index, question_count in groups.items():
         for question_number in range(question_count):
-            if question_number == 0 and group_index == 1 and groups == course_groups:
-                input_id = (
-                    f"BodyPH_surveyUserControl_repeaterQuestionGroups_"
-                    f"repeaterQuestions_{group_index}_rbl_{question_number}_{4}_{question_number}"
-                )
+            # The attendance question (>80%) is always answered with the last option
+            if question_number == 0 and group_index == 1 and groups == COURSE_GROUPS:
+                click_option(page, group_index, question_number, 4, debug_mode)
             else:
-                input_id = (
-                    f"BodyPH_surveyUserControl_repeaterQuestionGroups_"
-                    f"repeaterQuestions_{group_index}_rbl_{question_number}_{option}_{question_number}"
-                )
-            selector = f"#{input_id}"
+                click_option(page, group_index, question_number, option, debug_mode)
 
-            try:
-                page.wait_for_selector(selector, timeout=10000)
-                page.click(selector)
-                if debug_mode:
-                    print(f"Clicked: {input_id}")
-            except Exception as e:
-                if debug_mode:
-                    print(f"Failed to click ({input_id}): {e}")
+    submit_survey(page, groups, debug_mode)
 
-    if groups == course_groups:
-        fill_demographic_info(page)
-
-    # Submit
-    submit_selector = "#BodyPH_surveyUserControl_btnSubmit"
-    page.click(submit_selector)
-
-    if debug_mode:
-        print(f"Clicked: {submit_selector}")
-
-def fill_custom_survey(page, currently_filling, debug_mode: bool):
+def fill_custom_survey(page: Page, currently_filling: str, debug_mode: bool):
     """
-    @brief Handles custom surveys not following standard format with manual intervention.
+    @brief Lets the user answer each survey question individually.
     @param page The Playwright page object containing the survey form.
     @param currently_filling String describing which survey is being filled.
     @param debug_mode Boolean flag to enable debug output.
@@ -299,103 +209,60 @@ def fill_custom_survey(page, currently_filling, debug_mode: bool):
             "Select your default answer option (0=Strongly Agree, 1=Agree, 2=Uncertain, 3=Disagree, 4=Strongly Disagree): "
         ))
         fill_survey(page, debug_mode, selected_option)
+        return
 
-    else:
-        # Detect which survey is loaded
-        heading_element = page.wait_for_selector("#BodyPH_surveyUserControl_lbName")
-        heading_text = heading_element.inner_text()
+    groups = get_question_groups(page)
+    for group_index, question_count in groups.items():
+        for question_number in range(question_count):
+            question_selector = f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_{group_index}_divOptions_{question_number} > label"
+            question = page.query_selector(question_selector)
+            if question:
+                clear_terminal()
+                print(currently_filling + "\n")
+                print(f"Question: {question.inner_text().strip()}")
+                if question_number == 0 and group_index == 1 and groups == COURSE_GROUPS:
+                    selected_option = int(input(
+                        "Select your answer option (0=<21%, 1=21-40%, 2=41-60%, 3=61-80%, 4=>80%): "
+                    ))
+                else:
+                    selected_option = int(input(
+                        "Select your answer option (0=Strongly Agree, 1=Agree, 2=Uncertain, 3=Disagree, 4=Strongly Disagree): "
+                    ))
+                click_option(page, group_index, question_number, selected_option, debug_mode)
 
-        # Question groups for both survey types
-        teacher_groups = {
-            0: 13,
-            1: 5
-        }
+    submit_survey(page, groups, debug_mode)
 
-        course_groups = {
-            0: 3,
-            1: 3,
-            2: 4,
-            3: 4,
-            4: 3,
-            5: 3,
-            6: 4,
-            7: 3,
-            8: 2
-        }
-
-        # Pick correct mapping
-        groups = teacher_groups if "Teacher Evaluation Form" in heading_text else course_groups
-        for group_index, question_count in groups.items():
-            for question_number in range(question_count):
-                question_selector = f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_{group_index}_divOptions_{question_number} > label"
-                question = page.query_selector(question_selector)
-                if question:
-                    clear_terminal()
-                    print(currently_filling + "\n")
-                    print(f"Question: {question.inner_text().strip()}")
-                    if question_number == 0 and group_index == 1 and groups == course_groups:
-                        selected_option = int(input(
-                            "Select your answer option (0=<21%, 1=21-40%, 2=41-60%, 3=61-80%, 4=>80%): "
-                        ))
-                    else:
-                        selected_option = int(input(
-                            "Select your answer option (0=Strongly Agree, 1=Agree, 2=Uncertain, 3=Disagree, 4=Strongly Disagree): "
-                        ))
-                    input_id = (
-                        f"BodyPH_surveyUserControl_repeaterQuestionGroups_"
-                        f"repeaterQuestions_{group_index}_rbl_{question_number}_{selected_option}_{question_number}"
-                    )
-                    selector = f"#{input_id}"
-                    try:
-                        page.wait_for_selector(selector, timeout=10000)
-                        page.click(selector)
-                        if debug_mode:
-                            print(f"Clicked: {input_id}")
-                    except Exception as e:
-                        if debug_mode:
-                            print(f"Failed to click ({input_id}): {e}")
-        if groups == course_groups:
-            fill_demographic_info(page)
-
-        # Submit
-        submit_selector = "#BodyPH_surveyUserControl_btnSubmit"
-        page.click(submit_selector)
-
-def fill_demographic_info(page):
+def fill_demographic_info(page: Page):
     """
     @brief Fills demographic information questions in course evaluation surveys.
     @param page The Playwright page object containing the demographic form.
     @return None
     """
-    # Fulltime/Parttime
-    page.wait_for_selector("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_0_1_0", timeout=10000)
-    page.click("#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_0_1_0")
+    selectors = [
+        # Fulltime/Parttime
+        "#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_0_1_0",
+        # Disabled/Non-Disabled
+        f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_1_{int(not DISABLED)}_1",
+        # Male/Female
+        f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_3_{GENDER}_3",
+        # Age:>22/22-29/>29
+        f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_4_{AGE}_4",
+        # On Campus/Off Campus
+        f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_5_{ON_CAMPUS}_5",
+    ]
 
-    # Disabled/Non-Disabled
-    selector = f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_1_{int(not disabled)}_1"
-    page.wait_for_selector(selector, timeout=10000)
-    page.click(selector)
-
-    # Male/Female
-    page.wait_for_selector(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_3_{gender}_3", timeout=10000)
-    page.click(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_3_{gender}_3")
-
-    # Age:>22/22-29/>29
-    page.wait_for_selector(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_4_{age}_4", timeout=10000)
-    page.click(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_4_{age}_4")
-
-    # On Campus/Off Campus
-    page.wait_for_selector(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_5_{on_campus}_5", timeout=10000)
-    page.click(f"#BodyPH_surveyUserControl_repeaterQuestionGroups_repeaterQuestions_11_rbl_5_{on_campus}_5")
+    for selector in selectors:
+        page.wait_for_selector(selector, timeout=10000)
+        page.click(selector)
 
 if __name__ == "__main__":
     try:
-        if enrollment_number == "" or password == "" or data_dir == "":
+        if ENROLLMENT_NUMBER == "" or PASSWORD == "" or USER_DATA_DIR == "":
             print("Error: One or more required environment variables are not set.")
-            exit(1)
+            sys.exit(1)
 
         args = parse_args()
-        browser = None
+        context = None
 
         chosen_option = int(input(
             "Select your default answer option (0=Strongly Agree, 1=Agree, 2=Uncertain, 3=Disagree, 4=Strongly Disagree): "
@@ -403,46 +270,20 @@ if __name__ == "__main__":
 
         with sync_playwright() as p:
             try:
-                browser = start_playwright(args.debug)
-                page = browser.pages[0]
-                check_and_login_to_CMS(page, args.debug)
+                # Resource blocking is off here: the survey forms are untested without their styles/scripts
+                context = start_browser(p, USER_DATA_DIR, headless=not args.debug, block_resources=False)
+                page = get_page(context)
+                ensure_cms_login(context, page, CMS_SURVEYS_URL, args.debug)
 
                 handle_surveys(page, chosen_option, args.debug)
 
-                browser.close()
+                close_browser(context)
             except Exception as e:
-                error_message = str(e)
+                handle_script_error(e, context, "fillSurveys")
+                sys.exit(1)
 
-                if e == TimeoutError:
-                    print("Operation timed out. The LMS or CMS might be down or unresponsive.")
-
-                elif ("ERR_INTERNET_DISCONNECTED" in error_message):
-                    print("No internet connection. Please check your connection and try again.")
-
-                else:
-                    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-                    error_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "error_logs")
-                    os.makedirs(error_dir, exist_ok=True)
-
-                    html_file = f"{error_dir}/fillSurveys_error_{timestamp}.html"
-                    screenshot_file = f"{error_dir}/fillSurveys_error_{timestamp}.png"
-
-                    try:
-                        print(f"A playwright error occurred: {e}")
-                        if browser and browser.pages:
-                            page = browser.pages[0]
-                            with open(html_file, "w", encoding="utf-8") as f:
-                                f.write(page.content())
-                            page.screenshot(path=screenshot_file, full_page=True)
-                            print(f"Saved debug HTML to: {html_file}")
-                            print(f"Saved screenshot to: {screenshot_file}")
-                            browser.close()
-                    except Exception as inner_e:
-                        print(f"Failed to save debug info: {inner_e}")
-                exit(1)
-
-        if check_updates:
+        if CHECK_UPDATES:
             check_for_updates()
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
-        exit(1)
+        sys.exit(1)
