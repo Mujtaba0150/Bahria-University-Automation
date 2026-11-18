@@ -103,17 +103,37 @@ def check_and_login(page):
     page.fill("#BodyPH_tbPassword", password)
     page.select_option("#BodyPH_ddlInstituteID", "1")
     page.click("#BodyPH_btnLogin")
+    # Wait until the login postback has finished and we've left the login page
+    page.wait_for_url(lambda url: "Login.aspx" not in url, wait_until="domcontentloaded")
     print(f"Logged in as {enrollment_number}")
-    # page.goto("https://cms.bahria.edu.pk/Sys/Common/GoToLMS.aspx", wait_until="domcontentloaded")
-    lms_button = page.locator("//*[(@id=\"sideMenuList\")]/a[12]")
-    lms_button.evaluate("el => el.removeAttribute('target')")
-    lms_button.click()
-
 
     if ("QualityAssuranceSurveys.aspx" in page.url):
         print("Please complete the Quality Assurance Survey to proceed.")
         send_notification("Error" ,"Please complete the Quality Assurance Survey to proceed.", 2)
         exit(1)
+
+    go_to_lms(page)
+
+def go_to_lms(page: Page):
+    """
+    @brief Opens the LMS through CMS's GoToLMS.aspx handoff page.
+    GoToLMS.aspx returns a page whose script redirects to lms.bahria.edu.pk, where the
+    LMS session cookie is issued. page.goto() only waits for GoToLMS.aspx itself, so any
+    navigation started right after it aborts the JS redirect. Instead, we only wait for
+    the GoToLMS.aspx response to commit, then wait for the browser to actually land on LMS.
+    @param page The Playwright page object (already logged into CMS).
+    @return None
+    """
+    try:
+        page.goto("https://cms.bahria.edu.pk/Sys/Common/GoToLMS.aspx", wait_until="commit")
+    except Exception as e:
+        # The JS redirect can fire before goto() resolves and get reported as an
+        # interrupted/aborted navigation. That's expected; anything else is a real error.
+        if "interrupted by another navigation" not in str(e) and "ERR_ABORTED" not in str(e):
+            raise
+
+    page.wait_for_url("https://lms.bahria.edu.pk/**", wait_until="domcontentloaded")
+    print("Opened LMS")
 
 def download_assignment_file(page, subject_name: str, assignment_name: str, deadline_date: str, assignment_link: str) -> str:
     """
