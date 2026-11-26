@@ -100,7 +100,7 @@ class SetupWizard:
 
         # Default values
         self.default_values = {
-            'institution': '6',  # Islamabad E-8 Campus at index 6
+            'institution': '5',  # Islamabad E-8 Campus at index 5
             'disabled': 0,
             'gender': 0,
             'age': 0,

@@ -64,8 +64,9 @@ USER_DATA_DIR=${USER_DATA_DIR:-"$HOME/.local/share/ms-playwright"}
 read -p "Enter DOWNLOAD_DIR (default ~/Documents/Assignments): " DOWNLOAD_DIR
 DOWNLOAD_DIR=${DOWNLOAD_DIR:-"$HOME/Documents/Assignments"}
 
-read -p "Enter INSTITUTION (default 6): " INSTITUTION
-INSTITUTION=${INSTITUTION:-6}
+
+read -p "Enter INSTITUTION (default 5): " INSTITUTION
+INSTITUTION=${INSTITUTION:-5}
 
 read -p "Enter DISABLED (0/1, default 0): " DISABLED
 DISABLED=${DISABLED:-0}

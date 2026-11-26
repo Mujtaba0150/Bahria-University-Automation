@@ -76,8 +76,8 @@ if not defined USER_DATA_DIR set "USER_DATA_DIR=C:\Users\%USERNAME%\.AppData\Loc
 set /p DOWNLOAD_DIR=Enter DOWNLOAD_DIR (default C:\Users\%USERNAME%\Documents\Assignments): 
 if not defined DOWNLOAD_DIR set "DOWNLOAD_DIR=C:\Users\%USERNAME%\Documents\Assignments"
 
-set /p INSTITUTION=Enter INSTITUTION (default 6): 
-if not defined INSTITUTION set INSTITUTION=6
+set /p INSTITUTION=Enter INSTITUTION (default 5): 
+if not defined INSTITUTION set INSTITUTION=5
 
 set /p DISABLED=Enter DISABLED (0/1, default 0): 
 if not defined DISABLED set DISABLED=0

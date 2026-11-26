@@ -62,7 +62,7 @@ def validate_environment() -> bool:
         for problem in problems:
             print(problem)
         if NTFY_SERVER != "":
-            send_notification(NTFY_SERVER, "Error", "Error: One or more required environment variables are not set or are incorrectly set.", 1)
+            send_notification(NTFY_SERVER, "Error", "Error: One or more required environment variables are not set or are incorrectly set.", 3)
 
     return not problems
 
