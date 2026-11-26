@@ -267,7 +267,7 @@ def wait_for_login(page: Page, timeout: Optional[float] = None):
     @param timeout Optional timeout in milliseconds (defaults to the page's default timeout).
     @return None
     """
-    page.wait_for_url(lambda url: "Login.aspx" not in url, wait_until="domcontentloaded", timeout=timeout)
+    page.wait_for_url(lambda url: "Login.aspx" not in url, wait_until="commit", timeout=timeout)
 
 def login_to_cms(page: Page, enrollment_number: str = ENROLLMENT_NUMBER, password: str = PASSWORD):
     """

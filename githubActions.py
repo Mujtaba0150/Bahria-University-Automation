@@ -40,6 +40,20 @@ def alert_attendance(page: Page, debug_mode: bool):
                 f"Your attendance for {record.subject} has exceeded the allowed absence limit.",
                 5,
             )
+        elif record.remaining == 0:
+            send_notification(
+                NTFY_SERVER,
+                f"Attendance Alert: {record.subject}",
+                f"Your attendance for {record.subject} is at the limit. You cannot miss any more classes.",
+                3,
+            )
+        elif record.remaining <= (record.maximum // 4):
+            send_notification(
+                NTFY_SERVER,
+                f"Attendance Alert: {record.subject}",
+                f"Your attendance for {record.subject} is at or below 75% of the allowed absences. Please be cautious.",
+                2,
+            )
             print(f"Notification sent for {record.subject}")
 
 def validate_environment() -> bool:
