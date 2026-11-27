@@ -86,23 +86,66 @@ def main():
 
     try:
         with sync_playwright() as p:
-            context = start_browser(p)
-            page = get_page(context)
+            try:
+                context = start_browser(p)
+                page = get_page(context)
 
-            check_and_login(page)
-            download_dir = os.environ.get("HOME") if DOWNLOAD_ASSIGNMENTS else None
-            assignments = fetch_assignments(page, download_dir)
-            send_deadline_notifications(NTFY_SERVER, build_deadline_notifications(assignments), attach_files=True)
-            alert_attendance(page, debug_mode=False)
+                check_and_login(page)
+                download_dir = os.environ.get("HOME") if DOWNLOAD_ASSIGNMENTS else None
+                assignments = fetch_assignments(page, download_dir)
+                send_deadline_notifications(NTFY_SERVER, build_deadline_notifications(assignments), attach_files=True)
+                alert_attendance(page, debug_mode=False)
 
-            close_browser(context)
-    except PlaywrightTimeoutError as e:
-        print("Operation timed out. The LMS or CMS might be down or unresponsive.")
-        send_notification(NTFY_SERVER, "Timeout Error", f"Operation timed out. The LMS or CMS might be down or unresponsive.\nError Details: {str(e)}", 4)
-        sys.exit(1)
+                close_browser(context)
+            except PlaywrightTimeoutError as e:
+                print("Operation timed out. The LMS or CMS might be down or unresponsive.")
+
+                screenshot_path = "error_screenshot.png"
+
+                try:
+                    page.screenshot(path=screenshot_path, full_page=True)
+                except Exception as screenshot_error:
+                    print(f"Failed to capture screenshot: {screenshot_error}")
+                    screenshot_path = ""
+
+                send_notification(
+                    NTFY_SERVER,
+                    "Timeout Error",
+                    f"Operation timed out. The LMS or CMS might be down or unresponsive.\n"
+                    f"Error Details: {str(e)}",
+                    4,
+                    screenshot_path
+                )
+
+                sys.exit(1)
+    
+            except Exception as e:
+                print(f"Error during automation: {str(e)}")
+        
+                screenshot_path = "error_screenshot.png"
+        
+                try:
+                    page.screenshot(path=screenshot_path, full_page=True)
+                except Exception as screenshot_error:
+                    print(f"Failed to capture screenshot: {screenshot_error}")
+                    screenshot_path = ""
+        
+                send_notification(
+                    NTFY_SERVER,
+                    "Error",
+                    f"Error during automation: {str(e)}",
+                    4,
+                    screenshot_path
+                )
+    
     except Exception as e:
-        print(f"Error during automation: {str(e)}")
-        send_notification(NTFY_SERVER, "Error", f"Error during automation: {str(e)}", 4)
+        print(f"Error initializing Playwright: {str(e)}")
+        send_notification(
+                        NTFY_SERVER,
+                        "Error",
+                        f"Error Initializing Playwright: {str(e)}",
+                        4,
+                    )
         sys.exit(1)
 
 if __name__ == "__main__":
