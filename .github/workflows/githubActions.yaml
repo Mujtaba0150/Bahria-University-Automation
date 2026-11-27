@@ -29,7 +29,7 @@ jobs:
           NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
           NOTIFICATION_LEVEL: ${{ secrets.NOTIFICATION_LEVEL || '0' }}
           NOTIFY_EXTENDED: ${{ secrets.NOTIFY_EXTENDED || '1' }}
-          INSTITUTION: ${{ secrets.INSTITUTION || '6' }}
+          INSTITUTION: ${{ secrets.INSTITUTION || '5' }}
           DOWNLOAD_ASSIGNMENTS: ${{ secrets.DOWNLOAD_ASSIGNMENTS || '0' }}
         
         run: |
